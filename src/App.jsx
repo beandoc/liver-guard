@@ -166,7 +166,7 @@ function App() {
 
       {/* Ocular Tests Flow */}
       {view === 'ocular' && (
-        <div className="w-full h-full flex flex-col z-10 overflow-y-auto pt-8">
+        <div className="fixed inset-0 w-full h-full flex flex-col z-50 bg-slate-950 overflow-y-auto pt-8">
           <OcularMenu onExit={() => setView('menu')} lang={lang} />
         </div>
       )}

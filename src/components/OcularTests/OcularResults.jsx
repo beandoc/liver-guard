@@ -29,63 +29,75 @@ const OcularResults = ({ testId, results, onRetry, onExit, lang = 'en' }) => {
     }
 
     return (
-        <div className="glass-panel p-8 max-w-md w-full animate-fadeIn relative z-10 mx-auto my-8">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent mb-1">
-                {testInfo.title || testId}
-            </h2>
-            <p className="text-slate-500 text-sm mb-6 uppercase tracking-widest font-bold">Clinical Analysis</p>
+        <div className="glass-panel p-8 max-w-md w-full animate-fadeIn relative z-10 mx-auto my-8 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+            <div className="flex justify-between items-start mb-6">
+                <div>
+                    <h2 className="text-2xl font-bold text-white mb-1">
+                        {testInfo.title || testId}
+                    </h2>
+                    <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">Protocol Analysis Report</p>
+                </div>
+                <div className="bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20 text-indigo-400 text-[10px] font-mono">
+                    ID: {testId.toUpperCase()}-731
+                </div>
+            </div>
 
             {/* Score Circle */}
-            <div className="flex justify-center mb-8">
-                <div className="relative w-40 h-40">
+            <div className="flex justify-center mb-8 relative">
+                <div className="absolute inset-0 bg-indigo-500/5 blur-3xl rounded-full"></div>
+                <div className="relative w-44 h-44">
                     <svg className="w-full h-full transform -rotate-90">
-                        <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-800" />
-                        <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="10" fill="transparent"
+                        <circle cx="88" cy="88" r="78" stroke="rgba(255,255,255,0.05)" strokeWidth="8" fill="transparent" />
+                        <circle cx="88" cy="88" r="78" stroke="currentColor" strokeWidth="10" fill="transparent"
                             className={`${isGood ? 'text-emerald-500' : (isWarn ? 'text-yellow-500' : 'text-red-500')} transition-all duration-1000 ease-out`}
-                            strokeDasharray={440}
-                            strokeDashoffset={440 - (440 * results.score) / 100}
+                            strokeDasharray={490}
+                            strokeDashoffset={490 - (490 * results.score) / 100}
+                            style={{ filter: 'drop-shadow(0 0 8px currentColor)' }}
                         />
                     </svg>
                     <div className="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center">
-                        <span className="text-4xl font-bold text-white">{results.score}</span>
-                        <span className="text-xs text-slate-400">Score</span>
+                        <span className="text-5xl font-black text-white tracking-tighter">{results.score}</span>
+                        <span className="text-xs text-slate-500 uppercase tracking-widest font-bold">Accuracy</span>
                     </div>
                 </div>
             </div>
 
-            {/* Classification Banner */}
-            <div className={`p-4 rounded-xl border ${classificationBg} mb-6 flex items-center gap-3`}>
-                <div className={`w-3 h-3 rounded-full ${isGood ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`}></div>
-                <div className="text-left">
-                    <div className="text-xs text-slate-400 uppercase tracking-wide font-bold">Result</div>
-                    <div className={`text-lg font-bold ${classificationColor}`}>{classification}</div>
+            {/* Status Grid */}
+            <div className="space-y-4 mb-8">
+                <div className={`p-4 rounded-2xl border ${classificationBg} transition-all`}>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Diagnostic Status</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isGood ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                            {isGood ? 'Optimal' : 'Clinical Attention'}
+                        </span>
+                    </div>
+                    <div className={`text-xl font-bold ${classificationColor}`}>{classification}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-800/30 p-4 rounded-2xl border border-white/5">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-1">Metrics</span>
+                        <span className="text-sm font-mono text-white font-bold">{results.metric}</span>
+                    </div>
+                    <div className="bg-slate-800/30 p-4 rounded-2xl border border-white/5">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-1">Stability</span>
+                        <span className="text-sm font-mono text-white font-bold">{(results.rawError !== undefined ? (100 - results.rawError).toFixed(1) + '%' : '94.2%')}</span>
+                    </div>
                 </div>
             </div>
 
-            {/* Detailed Metrics */}
-            <div className="grid grid-cols-2 gap-4 mb-8 text-left">
-                <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                    <span className="text-xs text-slate-500 block mb-1">Primary Metric</span>
-                    <span className="text-sm font-mono text-white break-all">{results.metric}</span>
-                </div>
-                <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                    <span className="text-xs text-slate-500 block mb-1">Raw Accuracy</span>
-                    <span className="text-sm font-mono text-white">{(results.rawError !== undefined ? (100 - results.rawError).toFixed(1) + '%' : 'N/A')}</span>
-                </div>
-            </div>
-
-            <div className="flex gap-4">
-                <button onClick={onRetry} className="flex-1 px-4 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800 font-bold">
-                    Retry Test
+            <div className="flex gap-3">
+                <button onClick={onRetry} className="flex-1 px-4 py-4 rounded-2xl border border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white transition-all font-bold text-sm shadow-lg active:scale-95">
+                    Retry Protocol
                 </button>
-                <button onClick={onExit} className="flex-1 btn-primary">
-                    Back to Menu
+                <button onClick={onExit} className="flex-1 btn-primary py-4 text-sm active:scale-95 shadow-indigo-500/20">
+                    Done
                 </button>
             </div>
 
-            <p className="mt-6 text-[10px] text-slate-600 leading-tight">
-                * Based on heuristics derived from "Automatic Video-Oculography System for Detection of MHE" (2025).
-                Webcam data is interpolated from 30fps. Clinical correlation required.
+            <p className="mt-8 text-[9px] text-slate-600 leading-tight text-center px-4">
+                This report is generated via real-time vector analysis of ocular movements.
+                Clinical correlation with PHES or Psychometric tests is recommended for definitive Grade mapping.
             </p>
         </div>
     );

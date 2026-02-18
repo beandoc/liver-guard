@@ -211,7 +211,7 @@ const OcularMenu = ({ onExit, lang = 'en' }) => {
                     <button
                         key={test.id}
                         onClick={() => handleSelect(test.id)}
-                        className="group relative overflow-hidden bg-slate-900/40 border border-slate-800 hover:border-indigo-500/40 rounded-3xl p-0 transition-all active:scale-[0.98] hover:translate-y-[-4px] hover:shadow-2xl hover:shadow-indigo-900/20 text-left flex flex-col h-full backdrop-blur-md min-h-[180px]"
+                        className="group relative overflow-hidden bg-slate-900/40 border border-slate-800 hover:border-indigo-500/40 rounded-3xl p-0 transition-all active:scale-[0.98] hover:translate-y-[-8px] hover:shadow-2xl hover:shadow-indigo-900/20 text-left flex flex-col h-full backdrop-blur-xl min-h-[180px]"
                         style={{ animationDelay: `${idx * 100}ms` }}
                     >
                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
