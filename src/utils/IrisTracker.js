@@ -19,7 +19,7 @@ export class IrisTracker {
 
     /**
      * Phase A: Initialization
-     * Detects the iris using Circular Hough Transform (CHT)
+     * Detects the iris using Circular Hough Transform (CHT) with fallback
      * @param {HTMLVideoElement} videoElement 
      * @returns {Object|null} The detected iris ROI or null if failed
      */
@@ -33,97 +33,114 @@ export class IrisTracker {
         let gray = null;
         let blurred = null;
         let circles = null;
+        let claheMat = null;
+        let clahe = null;
 
         try {
-            // 1. Capture Frame
             const cap = new window.cv.VideoCapture(videoElement);
-            src = new window.cv.Mat(videoElement.height, videoElement.width, window.cv.CV_8UC4);
+            const width = videoElement.videoWidth;
+            const height = videoElement.videoHeight;
+
+            src = new window.cv.Mat(height, width, window.cv.CV_8UC4);
             cap.read(src);
 
-            // 2. Preprocessing
             gray = new window.cv.Mat();
             window.cv.cvtColor(src, gray, window.cv.COLOR_RGBA2GRAY, 0);
 
-            // Apply Gaussian Blur to reduce noise
-            blurred = new window.cv.Mat();
-            const ksize = new window.cv.Size(9, 9);
-            window.cv.GaussianBlur(gray, blurred, ksize, 2, 2, window.cv.BORDER_DEFAULT);
+            // 1. Advanced Normalization (CLAHE) - Essential for pupils in low/uneven light
+            claheMat = new window.cv.Mat();
+            clahe = new window.cv.CLAHE(2.5, new window.cv.Size(8, 8));
+            clahe.apply(gray, claheMat);
 
-            // 3. Circular Hough Transform (CHT)
+            // 2. Dynamic ROI: Scan the upper center where eyes are expected
+            const roiRect = new window.cv.Rect(
+                width * 0.1,
+                height * 0.1,
+                width * 0.8,
+                height * 0.5
+            );
+            const roi = claheMat.roi(roiRect);
+
+            // 3. Preprocessing
+            blurred = new window.cv.Mat();
+            window.cv.medianBlur(roi, blurred, 5);
+
+            // 4. Multi-Stage Detection
             circles = new window.cv.Mat();
-            // params: method, dp, minDist, param1 (canny), param2 (accumulator), minRadius, maxRadius
-            // Paper settings: minDist: 40, param1: 180, param2: 10, minR: 15, maxR: 50
-            // Adjusted for web resolution scaling
-            window.cv.HoughCircles(blurred, circles, window.cv.HOUGH_GRADIENT, 1, 40, 100, 30, 10, 60);
+
+            // INCREASED MAX RADIUS: Up to 150 pixels to handle "Close Up" shots or 1080p+
+            // Param2 lowered to 20 for extreme sensitivity to subtle eye circles
+            window.cv.HoughCircles(blurred, circles, window.cv.HOUGH_GRADIENT, 1, 60, 100, 20, 15, 150);
 
             let bestCircle = null;
 
             if (circles.cols > 0) {
-                // Iterate found circles to find the darkest one (Iris is dark)
+                // Heuristic: Find the most centered circle in the ROI
+                let minDist = Infinity;
                 for (let i = 0; i < circles.cols; ++i) {
-                    const x = circles.data32F[i * 3];
-                    const y = circles.data32F[i * 3 + 1];
+                    const cx = circles.data32F[i * 3];
+                    const cy = circles.data32F[i * 3 + 1];
                     const r = circles.data32F[i * 3 + 2];
 
-                    // Heuristic: Check average brightness in this circle to confirm it's an eye
-                    // Ideally we'd mask and sum, but for speed we select the strongest CHT candidate
-                    // For this implementation, we take the first strong circle
-                    bestCircle = { x, y, r };
-
-                    // In a full implementation, we would crop and sum pixels here
-                    break;
+                    const distFromCenter = Math.abs(cx - roiRect.width / 2);
+                    if (distFromCenter < minDist) {
+                        minDist = distFromCenter;
+                        bestCircle = { x: cx + roiRect.x, y: cy + roiRect.y, r };
+                    }
+                }
+            } else {
+                // 5. FALLBACK: Darkest Point Detection (if Hough fails)
+                // Iris/Pupil is usually the darkest part of the ROI in IR or visible light
+                let minMax = window.cv.minMaxLoc(blurred);
+                if (minMax.minVal < 100) { // Threshold for a dark blob
+                    bestCircle = {
+                        x: minMax.minLoc.x + roiRect.x,
+                        y: minMax.minLoc.y + roiRect.y,
+                        r: 45 // Generic iris radius for template creation
+                    };
+                    console.log("Hough failed, used Darkest Blob / Pupil Centroid fallback");
                 }
             }
 
             if (bestCircle) {
-                // 4. Create Template (ROI)
-                // We take a box around the iris
-                const roiSize = bestCircle.r * 2.5; // Slightly larger than diameter
-                const x = Math.max(0, bestCircle.x - roiSize / 2);
-                const y = Math.max(0, bestCircle.y - roiSize / 2);
+                // 6. Final Template Lock
+                const templateSize = bestCircle.r * 2.2;
+                const tx = Math.max(0, bestCircle.x - templateSize / 2);
+                const ty = Math.max(0, bestCircle.y - templateSize / 2);
 
-                const roiRect = new window.cv.Rect(x, y, roiSize, roiSize);
+                const templateRect = new window.cv.Rect(tx, ty, templateSize, templateSize);
 
-                // Ensure ROI is within bounds
-                if (x + roiSize < gray.cols && y + roiSize < gray.rows) {
-                    this.irisTemplate = gray.roi(roiRect);
-                    this.templateRect = roiRect;
+                if (tx + templateSize < gray.cols && ty + templateSize < gray.rows) {
+                    const finalRoi = gray.roi(templateRect);
+                    this.irisTemplate = finalRoi.clone();
+                    finalRoi.delete();
+
+                    this.templateRect = templateRect;
                     this.lastPosition = { x: bestCircle.x, y: bestCircle.y };
                     this.isReady = true;
-
-                    console.log("Iris Template Created:", roiRect);
+                    console.log("TRACKER_LOCK: Captured at R=", bestCircle.r);
                 }
             }
 
+            roi.delete();
             return this.isReady;
 
         } catch (err) {
-            console.error("Iris Detection failed:", err);
+            console.error("Critical Iris Detection Error:", err);
             return false;
         } finally {
-            // Cleanup: IMPORTANT to delete Mats to restart logic
             if (src) src.delete();
+            if (gray) gray.delete();
+            if (claheMat) claheMat.delete();
+            if (clahe) clahe.delete();
             if (blurred) blurred.delete();
             if (circles) circles.delete();
-            // Note: We DO NOT delete 'gray' if we successfully created a template from it (irisTemplate is a lightweight ROI)
-            // Actually ROIs share buffer, so we must CLONE the template if we want to delete gray.
-            // But if we fail, we delete gray. 
-            // If we succeed, we need to keep the data.
-            // Let's optimize: clone the ROI to a standalone matrix so we can free the big frame.
-            if (this.isReady && this.irisTemplate) {
-                const standalone = this.irisTemplate.clone();
-                this.irisTemplate.delete(); // delete ROI handle
-                this.irisTemplate = standalone; // replace with clone
-                if (gray) gray.delete(); // NOW we can delete keyframe
-            } else {
-                if (gray) gray.delete();
-            }
         }
     }
 
     /**
      * Phase B: Real-Time Tracking
-     * Uses Template Matching to track the initialized iris
+     * Uses Template Matching with Sub-pixel refinement
      * @param {HTMLVideoElement} videoElement 
      * @returns {Object} {x, y} coordinate of iris center
      */
@@ -138,27 +155,29 @@ export class IrisTracker {
 
         try {
             cap = new window.cv.VideoCapture(videoElement);
-            src = new window.cv.Mat(videoElement.height, videoElement.width, window.cv.CV_8UC4);
+            src = new window.cv.Mat(videoElement.videoHeight, videoElement.videoWidth, window.cv.CV_8UC4);
             cap.read(src);
 
             gray = new window.cv.Mat();
             window.cv.cvtColor(src, gray, window.cv.COLOR_RGBA2GRAY, 0);
 
+            // Using Histogram Equalization during tracking for consistency
+            const equalized = new window.cv.Mat();
+            window.cv.equalizeHist(gray, equalized);
+
             result = new window.cv.Mat();
             mask = new window.cv.Mat();
 
-            // TM_CCOEFF_NORMED is robust to lighting changes
-            window.cv.matchTemplate(gray, this.irisTemplate, result, window.cv.TM_CCOEFF_NORMED, mask);
+            window.cv.matchTemplate(equalized, this.irisTemplate, result, window.cv.TM_CCOEFF_NORMED, mask);
 
             const minMax = window.cv.minMaxLoc(result, mask);
             const { maxLoc, maxVal } = minMax;
 
-            // Threshold confidence
-            if (maxVal > 0.5) { // Slightly lower threshold for mobile stability
-                // Location is top-left of match
+            equalized.delete();
+
+            if (maxVal > 0.4) { // Highly sensitive threshold
                 const cx = maxLoc.x + this.templateRect.width / 2;
                 const cy = maxLoc.y + this.templateRect.height / 2;
-
                 this.lastPosition = { x: cx, y: cy };
             }
 

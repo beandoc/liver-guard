@@ -238,19 +238,24 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
 
                 {/* Overlay Guide */}
                 <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center overflow-hidden">
-                    {/* Face Box */}
-                    <div className={`w-56 h-72 md:w-80 md:h-96 border-4 rounded-[4rem] transition-all duration-500 box-border ${phase === 'verifying'
-                        ? 'border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.5)] scale-105'
-                        : 'border-white/40 border-dashed animate-pulse'
-                        }`}></div>
-
-                    {/* Instructions Floating Near Face */}
-                    <div className="absolute top-[20%] md:top-[25%] bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 text-white font-bold text-xs md:text-sm shadow-xl z-20">
-                        {phase === 'capture_template' ? 'Step 2: Align Face & Open Eyes' : 'Step 1: Initialization'}
+                    {/* Focused Eye Zone (Matching ROI) */}
+                    <div className={`w-[85%] h-[35%] md:w-96 md:h-64 border-4 rounded-3xl transition-all duration-500 box-border mt-[-20%] ${phase === 'verifying'
+                        ? 'border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.5)]'
+                        : 'border-white/30 border-dashed animate-pulse'
+                        }`}>
+                        <div className="absolute inset-0 flex items-center justify-between px-8">
+                            <div className="w-8 h-8 border-t-2 border-l-2 border-white/20"></div>
+                            <div className="w-8 h-8 border-t-2 border-r-2 border-white/20"></div>
+                        </div>
                     </div>
 
-                    {/* Eye Level Guide */}
-                    <div className="absolute top-[35%] w-full h-px bg-blue-500/40"></div>
+                    {/* Instructions Floating Above Box */}
+                    <div className="absolute top-[18%] bg-indigo-600/90 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 text-white font-black text-xs md:text-sm shadow-2xl z-20 animate-bounce">
+                        {phase === 'capture_template' ? 'ALIGN EYES IN BOX' : 'INITIALIZING'}
+                    </div>
+
+                    {/* Eye Level Guide line */}
+                    <div className="absolute top-[28%] w-full h-px bg-blue-500/60 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>
                 </div>
 
                 {/* Status Overlay */}
