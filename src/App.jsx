@@ -4,6 +4,8 @@ import GameCanvas from './components/GameCanvas'
 import Results from './components/Results'
 import StroopTest from './components/StroopTest'
 import OcularMenu from './components/OcularTests/OcularMenu'
+import LandingPage from './components/LandingPage'
+import ClinicalDashboard from './components/ClinicalDashboard'
 import { TRANSLATIONS } from './translations'
 import { OCULAR_TRANSLATIONS } from './components/OcularTests/constants'
 import './App.css'
@@ -23,10 +25,18 @@ const SVGLogo = () => (
 
 
 function App() {
-  const [view, setView] = useState('menu'); // 'menu', 'trails-a-intro', 'trails-a-game', 'trails-b-intro', 'trails-b-game', 'trails-results', 'stroop', 'ocular'
+  const [view, setView] = useState('landing'); // 'landing', 'menu', 'dashboard', etc.
   const [trailsTime, setTrailsTime] = useState(0);
-  const [activeTest, setActiveTest] = useState('A'); // 'A' or 'B'
+  const [activeTest, setActiveTest] = useState('A');
   const [lang, setLang] = useState('en');
+
+  // Central Session State for Clinical Summary
+  const [sessionResults, setSessionResults] = useState({
+    nctA: null,
+    nctB: null,
+    stroop: null,
+    ocular: null
+  });
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const t_ocular = OCULAR_TRANSLATIONS[lang] || OCULAR_TRANSLATIONS.en;
@@ -36,7 +46,18 @@ function App() {
 
   const handleTrailsComplete = (time) => {
     setTrailsTime(time);
+    const key = activeTest === 'A' ? 'nctA' : 'nctB';
+    setSessionResults(prev => ({ ...prev, [key]: { time } }));
     setView('trails-results');
+  };
+
+  const handleStroopComplete = (results) => {
+    setSessionResults(prev => ({ ...prev, stroop: { diff: (results.on.time - results.off.time) / 1000 } }));
+    setView('menu');
+  };
+
+  const handleOcularComplete = (score) => {
+    setSessionResults(prev => ({ ...prev, ocular: { score } }));
   };
 
   return (
@@ -57,6 +78,11 @@ function App() {
           style={{ animationDelay: '2s', backgroundColor: 'rgba(16, 185, 129, 0.1)' }}
         ></div>
       </div>
+
+      {/* Landing Page */}
+      {view === 'landing' && (
+        <LandingPage onStart={() => setView('menu')} lang={lang} setLang={setLang} />
+      )}
 
       {/* Main Menu */}
       {view === 'menu' && (
@@ -88,10 +114,10 @@ function App() {
               </div>
             </div>
             <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-indigo-100 to-slate-400 bg-clip-text text-transparent mb-2">
-              {t.title}
+              Assessment Protocol
             </h1>
-            <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-              {t.subtitle}
+            <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed italic">
+              Digital Psychometric Evaluation Suite
             </p>
           </div>
 
@@ -155,6 +181,13 @@ function App() {
               </div>
               <span className="text-xs text-slate-400 group-hover:text-indigo-200 font-medium text-left pl-11 relative z-10 transition-colors">Digital Biomarker Analysis (Webcam)</span>
             </button>
+
+            <button
+              onClick={() => setView('dashboard')}
+              className="w-full mt-4 py-4 bg-emerald-600/20 border border-emerald-500/30 rounded-xl text-emerald-400 font-bold hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-2"
+            >
+              📊 Physician Dashboard
+            </button>
           </div>
 
           <div className="mt-8 pt-6 border-t border-white/5 flex flex-col items-center gap-2">
@@ -166,6 +199,11 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Clinical Dashboard */}
+      {view === 'dashboard' && (
+        <ClinicalDashboard results={sessionResults} onExit={() => setView('menu')} />
       )}
 
       {/* Trails A Test Flow */}
@@ -216,7 +254,7 @@ function App() {
       {view === 'stroop' && (
         <div className="w-full h-full flex flex-col z-10">
           <StroopTest
-            onComplete={() => setView('menu')}
+            onComplete={handleStroopComplete}
             onExit={() => setView('menu')}
             lang={lang}
           />
@@ -226,7 +264,11 @@ function App() {
       {/* Ocular Tests Flow */}
       {view === 'ocular' && (
         <div className="fixed inset-0 w-full h-full flex flex-col z-50 bg-slate-950 overflow-y-auto pt-8">
-          <OcularMenu onExit={() => setView('menu')} lang={lang} />
+          <OcularMenu
+            onExit={() => setView('menu')}
+            onUpdate={handleOcularComplete}
+            lang={lang}
+          />
         </div>
       )}
 
