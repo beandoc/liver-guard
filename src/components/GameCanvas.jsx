@@ -147,20 +147,20 @@ const GameCanvas = ({ onComplete, onExit, testType = 'A', totalPoints = 25 }) =>
         </div>
       </div>
 
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 px-5 py-2 rounded-full bg-slate-800/80 border border-indigo-500/30 backdrop-blur-md z-30 shadow-xl flex items-center gap-4">
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold">Target</span>
-          <span className="text-2xl font-black text-white">{getTargetLabel()}</span>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 px-6 py-2.5 rounded-2xl bg-black/70 border border-white/10 backdrop-blur-md z-30 shadow-2xl flex items-center gap-5 min-w-[260px]">
+        <div className="flex flex-col items-center min-w-[48px]">
+          <span className="text-[9px] uppercase tracking-[0.2em] text-indigo-400 font-bold">Target</span>
+          <span className="text-2xl font-black text-white leading-none mt-0.5">{getTargetLabel()}</span>
         </div>
         <div className="w-px h-8 bg-white/10" />
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Progress</span>
-          <span className="text-sm font-mono text-slate-300">{nextIndex}/{points.length}</span>
+        <div className="flex flex-col items-center min-w-[48px]">
+          <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-bold">Progress</span>
+          <span className="text-sm font-mono text-slate-300 leading-none mt-0.5">{nextIndex}/{points.length}</span>
         </div>
         <div className="w-px h-8 bg-white/10" />
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] uppercase tracking-widest text-emerald-500 font-bold">Time</span>
-          <span className="text-sm font-mono text-emerald-400">{elapsed.toFixed(1)}s</span>
+        <div className="flex flex-col items-center min-w-[48px]">
+          <span className="text-[9px] uppercase tracking-[0.2em] text-emerald-500 font-bold">Time</span>
+          <span className="text-sm font-mono text-emerald-400 leading-none mt-0.5">{elapsed.toFixed(1)}s</span>
         </div>
       </div>
 

@@ -23,6 +23,62 @@ const SVGLogo = () => (
   </svg>
 );
 
+const IntroScreen = ({ accent, accentBg, accentBorder, badge, label, title, desc, ctaLabel, onBack, onStart, meta = [] }) => (
+  <div style={{ minHeight: '100vh', width: '100%', background: '#030712', color: 'white', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    {/* Background orbs */}
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+      <div style={{ position: 'absolute', top: '-20%', left: '-10%', width: '55%', height: '55%', background: `radial-gradient(circle, ${accentBg} 0%, transparent 70%)`, animation: 'menuOrbFloat 9s ease-in-out infinite' }} />
+      <div style={{ position: 'absolute', bottom: '-15%', right: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(14,165,233,0.1) 0%, transparent 70%)', animation: 'menuOrbFloat 11s ease-in-out infinite reverse' }} />
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '72px 72px', maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%)', WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%)' }} />
+    </div>
+    {/* Nav */}
+    <nav style={{ position: 'relative', zIndex: 10, maxWidth: 680, margin: '0 auto', width: '100%', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <button onClick={onBack} style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', cursor: 'pointer', fontSize: 16, transition: 'all 0.2s' }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}>←</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #4f46e5, #0ea5e9)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 14px rgba(79,70,229,0.4)' }}>
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        </div>
+        <span style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.02em' }}>Liver<span style={{ color: '#818cf8' }}>Guard</span></span>
+      </div>
+    </nav>
+    {/* Content */}
+    <div style={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 24px 60px' }}>
+      <div style={{ width: '100%', maxWidth: 560, textAlign: 'center' }}>
+        {/* Badge */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: accentBg, border: `1px solid ${accentBorder}`, borderRadius: 9999, padding: '5px 14px', marginBottom: 28 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: accentBg, border: `1px solid ${accentBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.1rem', color: accent }}>{label}</div>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: accent, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{badge}</span>
+        </div>
+        {/* Title */}
+        <h1 style={{ fontSize: 'clamp(1.8rem, 5vw, 3rem)', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '0 0 20px', color: 'white' }}>{title}</h1>
+        {/* Description card */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '20px 24px', marginBottom: 28, textAlign: 'left' }}>
+          <p style={{ color: '#94a3b8', lineHeight: 1.7, fontSize: '0.95rem', margin: 0 }}>{desc}</p>
+        </div>
+        {/* Meta chips */}
+        {meta.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 32, flexWrap: 'wrap' }}>
+            {meta.map((m, i) => (
+              <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <span style={{ fontSize: '1rem', fontWeight: 800, color: 'white', fontFamily: 'monospace' }}>{m.value}</span>
+                <span style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{m.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* CTA */}
+        <button onClick={onStart} style={{ width: '100%', padding: '16px', background: accent, border: 'none', borderRadius: 14, color: 'white', fontWeight: 700, fontSize: '1.05rem', cursor: 'pointer', letterSpacing: '-0.01em', boxShadow: `0 0 40px -10px ${accent}`, transition: 'all 0.3s cubic-bezier(0.23,1,0.32,1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 0 60px -10px ${accent}`; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 0 40px -10px ${accent}`; }}>
+          {ctaLabel}
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 function App() {
   const [view, setView] = useState('landing'); // 'landing', 'menu', 'dashboard', etc.
@@ -81,201 +137,230 @@ function App() {
 
       {/* Landing Page */}
       {view === 'landing' && (
-        <LandingPage onStart={() => setView('menu')} lang={lang} setLang={setLang} />
+        <LandingPage onStart={() => setView('menu')} onDashboard={() => setView('dashboard')} lang={lang} setLang={setLang} />
       )}
 
       {/* Main Menu */}
       {view === 'menu' && (
-        <div className="glass-panel p-6 md:p-8 max-w-lg w-full animate-fadeIn relative z-10 shadow-2xl border border-white/5 overflow-hidden">
-          <div className="absolute top-4 right-4 flex gap-1 bg-slate-800/50 p-1 rounded-lg border border-white/5">
-            {['en', 'hi', 'mr'].map((l) => (
+        <div style={{ minHeight: '100vh', width: '100%', background: '#030712', color: 'white', position: 'relative', overflowX: 'hidden', overflowY: 'auto' }}>
+          <style>{`
+            @keyframes menuOrbFloat {
+              0%, 100% { transform: translate(0,0) scale(1); }
+              50% { transform: translate(2%, 3%) scale(1.04); }
+            }
+            .menu-test-card {
+              background: rgba(255,255,255,0.03);
+              border: 1px solid rgba(255,255,255,0.07);
+              border-radius: 20px;
+              padding: 28px;
+              cursor: pointer;
+              transition: transform 0.3s cubic-bezier(0.23,1,0.32,1), box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+              position: relative;
+              overflow: hidden;
+              text-align: left;
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+            }
+            .menu-test-card:hover {
+              transform: translateY(-5px);
+              background: rgba(255,255,255,0.055);
+              border-color: rgba(255,255,255,0.14);
+            }
+            .menu-test-card:active { transform: scale(0.98); }
+          `}</style>
+
+          {/* Background orbs */}
+          <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+            <div style={{ position: 'absolute', top: '-15%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(79,70,229,0.15) 0%, transparent 70%)', animation: 'menuOrbFloat 9s ease-in-out infinite' }} />
+            <div style={{ position: 'absolute', bottom: '-15%', right: '-10%', width: '45%', height: '45%', background: 'radial-gradient(circle, rgba(14,165,233,0.12) 0%, transparent 70%)', animation: 'menuOrbFloat 11s ease-in-out infinite reverse' }} />
+            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '72px 72px', maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%)', WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%)' }} />
+          </div>
+
+          {/* Navbar */}
+          <nav style={{ position: 'relative', zIndex: 10, maxWidth: 900, margin: '0 auto', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, background: 'linear-gradient(135deg, #4f46e5, #0ea5e9)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 18px rgba(79,70,229,0.4)' }}>
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <span style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.02em' }}>Liver<span style={{ color: '#818cf8' }}>Guard</span></span>
+              <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#475569', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '2px 8px' }}>Clinical v2.5</span>
+            </div>
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9999, padding: 3 }}>
+              {['en', 'hi', 'mr'].map(l => (
+                <button key={l} onClick={() => setLang(l)} style={{ padding: '4px 12px', borderRadius: 9999, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', border: 'none', cursor: 'pointer', background: lang === l ? '#4f46e5' : 'transparent', color: lang === l ? 'white' : '#64748b', transition: 'all 0.2s ease' }}>{l}</button>
+              ))}
+            </div>
+          </nav>
+
+          {/* Hero header */}
+          <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '24px 24px 40px', maxWidth: 900, margin: '0 auto' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(79,70,229,0.1)', border: '1px solid rgba(79,70,229,0.25)', borderRadius: 9999, padding: '5px 14px', marginBottom: 20 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4f46e5', display: 'inline-block' }} />
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#a5b4fc', letterSpacing: '0.05em' }}>Select a Diagnostic Protocol</span>
+            </div>
+            <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '0 0 12px' }}>
+              <span style={{ color: 'white' }}>Assessment </span>
+              <span style={{ background: 'linear-gradient(135deg, #60a5fa, #818cf8, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Protocol Suite</span>
+            </h1>
+            <p style={{ color: '#64748b', fontSize: '1rem', maxWidth: 480, margin: '0 auto', lineHeight: 1.6 }}>
+              {t.clinical_note} · Digital Psychometric Evaluation
+            </p>
+          </div>
+
+          {/* Test Cards Grid */}
+          <div style={{ position: 'relative', zIndex: 10, maxWidth: 900, margin: '0 auto', padding: '0 20px 32px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+            {[
+              { view: 'trails-a-intro', num: 'I', label: t.trails_test, sub: t.detect_overt, glow: 'rgba(59,130,246,0.18)', accent: '#3b82f6', accentBg: 'rgba(59,130,246,0.1)', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, time: '~3 min' },
+              { view: 'trails-b-intro', num: 'II', label: t.trails_b_test, sub: t.detect_executive, glow: 'rgba(139,92,246,0.18)', accent: '#8b5cf6', accentBg: 'rgba(139,92,246,0.1)', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>, time: '~4 min' },
+              { view: 'stroop', num: 'III', label: t.stroop_test, sub: t.detect_minimal, glow: 'rgba(16,185,129,0.18)', accent: '#10b981', accentBg: 'rgba(16,185,129,0.1)', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>, time: '~2 min' },
+              { view: 'ocular', num: 'IV', label: t_ocular.ocular_tests_title, sub: 'Digital Biomarker Analysis · Webcam', glow: 'rgba(79,70,229,0.18)', accent: '#4f46e5', accentBg: 'rgba(79,70,229,0.1)', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, time: '~8 min' },
+            ].map(card => (
               <button
-                key={l}
-                onClick={() => setLang(l)}
-                className={`px-3 py-1 text-xs rounded-md transition-all font-medium ${lang === l
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-                  }`}
+                key={card.view}
+                className="menu-test-card"
+                onClick={() => setView(card.view)}
+                onMouseEnter={e => e.currentTarget.style.boxShadow = `0 20px 40px -10px ${card.glow}`}
+                onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
               >
-                {l.toUpperCase()}
+                {/* Glow orb */}
+                <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: `radial-gradient(circle, ${card.glow} 0%, transparent 70%)`, borderRadius: '50%', pointerEvents: 'none' }} />
+                {/* Header row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: card.accentBg, border: `1px solid ${card.accent}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: card.accent }}>
+                    {card.icon}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '4px 10px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{card.time}</span>
+                  </div>
+                </div>
+                {/* Labels */}
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: card.accent, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4, opacity: 0.8 }}>Protocol {card.num}</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'white', letterSpacing: '-0.01em', marginBottom: 6 }}>{card.label}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5 }}>{card.sub}</div>
+                </div>
+                {/* Arrow */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 14 }}>→</div>
+                </div>
               </button>
             ))}
           </div>
 
-          <div className="mb-8 mt-4 relative">
-            <div className="flex justify-center mb-6">
-              <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/5 backdrop-blur-sm">
-                <div className="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <div className="font-bold text-xl tracking-tight text-white leading-none">Liver<span className="text-indigo-400">Guard</span></div>
-                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Clinical v2.5</div>
-                </div>
-              </div>
-            </div>
-            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-indigo-100 to-slate-400 bg-clip-text text-transparent mb-2">
-              Assessment Protocol
-            </h1>
-            <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed italic">
-              Digital Psychometric Evaluation Suite
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <button
-              onClick={() => setView('trails-a-intro')}
-              className="w-full text-lg flex flex-col items-start px-6 py-5 rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-900/40 to-slate-900/40 hover:from-blue-900/60 hover:to-slate-800/60 hover:border-blue-400/40 transition-all group relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="flex w-full justify-between items-center mb-1 relative z-10">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold border border-blue-500/30">I</span>
-                  <span className="font-bold tracking-tight text-slate-100 group-hover:text-white transition-colors">{t.trails_test}</span>
-                </div>
-                <span className="text-sm text-slate-500 group-hover:text-blue-400 group-hover:translate-x-1 transition-all">➜</span>
-              </div>
-              <span className="text-xs text-slate-400 group-hover:text-blue-200 font-medium text-left pl-11 relative z-10 transition-colors">{t.detect_overt}</span>
-            </button>
-
-            <button
-              onClick={() => setView('trails-b-intro')}
-              className="w-full text-lg flex flex-col items-start px-6 py-5 rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-900/40 to-slate-900/40 hover:from-violet-900/60 hover:to-slate-800/60 hover:border-violet-400/40 transition-all group relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-violet-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="flex w-full justify-between items-center mb-1 relative z-10">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center text-violet-400 text-sm font-bold border border-violet-500/30">II</span>
-                  <span className="font-bold tracking-tight text-slate-100 group-hover:text-white transition-colors">{t.trails_b_test}</span>
-                </div>
-                <span className="text-sm text-slate-500 group-hover:text-violet-400 group-hover:translate-x-1 transition-all">➜</span>
-              </div>
-              <span className="text-xs text-slate-400 group-hover:text-violet-200 font-medium text-left pl-11 relative z-10 transition-colors">{t.detect_executive}</span>
-            </button>
-
-            <button
-              onClick={() => setView('stroop')}
-              className="w-full text-lg flex flex-col items-start px-6 py-5 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-900/40 to-slate-900/40 hover:from-emerald-900/60 hover:to-slate-800/60 hover:border-emerald-400/40 transition-all group relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="flex w-full justify-between items-center mb-1 relative z-10">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-sm font-bold border border-emerald-500/30">III</span>
-                  <span className="font-bold tracking-tight text-slate-100 group-hover:text-white transition-colors">{t.stroop_test}</span>
-                </div>
-                <span className="text-sm text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all">➜</span>
-              </div>
-              <span className="text-xs text-slate-400 group-hover:text-emerald-200 font-medium text-left pl-11 relative z-10 transition-colors">{t.detect_minimal}</span>
-            </button>
-
-            <button
-              onClick={() => setView('ocular')}
-              className="w-full text-lg flex flex-col items-start px-6 py-5 rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-900/40 to-slate-900/40 hover:from-indigo-900/60 hover:to-slate-800/60 hover:border-indigo-400/40 transition-all group relative overflow-hidden shadow-[0_4px_20px_rgba(99,102,241,0.1)] hover:shadow-[0_4px_25px_rgba(99,102,241,0.2)]"
-            >
-              <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="flex w-full justify-between items-center mb-1 relative z-10">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-sm font-bold border border-indigo-500/30">IV</span>
-                  <span className="font-bold tracking-tight text-slate-100 group-hover:text-white transition-colors">{t_ocular.ocular_tests_title}</span>
-                </div>
-                <span className="text-sm text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all">➜</span>
-              </div>
-              <span className="text-xs text-slate-400 group-hover:text-indigo-200 font-medium text-left pl-11 relative z-10 transition-colors">Digital Biomarker Analysis (Webcam)</span>
-            </button>
-
+          {/* Bottom bar */}
+          <div style={{ position: 'relative', zIndex: 10, maxWidth: 900, margin: '0 auto', padding: '0 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
             <button
               onClick={() => setView('dashboard')}
-              className="w-full mt-4 py-4 bg-emerald-600/20 border border-emerald-500/30 rounded-xl text-emerald-400 font-bold hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-2"
+              style={{ width: '100%', padding: '16px', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 16, color: '#34d399', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.3s ease', letterSpacing: '-0.01em' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.14)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.35)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.07)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.2)'; }}
             >
-              📊 Physician Dashboard
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+              Physician Dashboard
             </button>
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-white/5 flex flex-col items-center gap-2">
-            <div className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold opacity-60">
-              {t.clinical_note}
-            </div>
-            <div className="text-[8px] uppercase tracking-[0.3em] text-slate-400 font-bold opacity-30 mt-1">
-              LiverGuard Clinical Institution
-            </div>
+            <p style={{ fontSize: '10px', color: '#1e3a5f', fontFamily: 'monospace', letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center' }}>
+              For Clinical Research Use Only · LiverGuard Clinical Systems
+            </p>
           </div>
         </div>
       )}
+
 
       {/* Clinical Dashboard */}
-      {view === 'dashboard' && (
-        <ClinicalDashboard results={sessionResults} onExit={() => setView('menu')} />
-      )}
+      {
+        view === 'dashboard' && (
+          <ClinicalDashboard results={sessionResults} onExit={() => setView('menu')} />
+        )
+      }
 
       {/* Trails A Test Flow */}
-      {view === 'trails-a-intro' && (
-        <div className="glass-panel p-8 max-w-md w-full animate-fadeIn z-10 relative">
-          <button onClick={() => setView('menu')} className="absolute top-6 left-6 text-slate-400 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-white/10 group">
-            <span className="group-hover:-translate-x-1 transition-transform block">←</span>
-          </button>
-          <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 text-xl font-bold border border-blue-500/30 mx-auto mb-4">A</div>
-          <h2 className="title mb-4 text-2xl">{t.trails_intro}</h2>
-          <p className="text-secondary mb-8 leading-relaxed text-sm bg-slate-800/50 p-4 rounded-xl border border-white/5">
-            {t.trails_desc}
-          </p>
-          <button onClick={startTrailsA} className="btn-primary w-full py-4 text-lg font-bold shadow-lg shadow-blue-900/20">{t.trails_start}</button>
-        </div>
-      )}
+      {
+        view === 'trails-a-intro' && (
+          <IntroScreen
+            accent="#3b82f6"
+            accentBg="rgba(59,130,246,0.12)"
+            accentBorder="rgba(59,130,246,0.25)"
+            badge="Protocol I · NCT-A"
+            label="A"
+            title={t.trails_intro}
+            desc={t.trails_desc}
+            ctaLabel={t.trails_start}
+            onBack={() => setView('menu')}
+            onStart={startTrailsA}
+            meta={[{ label: 'Duration', value: '~3 min' }, { label: 'Points', value: '25' }, { label: 'Norm', value: '< 50s' }]}
+          />
+        )
+      }
 
-      {view === 'trails-a-game' && (
-        <GameCanvas onComplete={handleTrailsComplete} onExit={() => setView('menu')} testType="A" totalPoints={25} lang={lang} />
-      )}
+      {
+        view === 'trails-a-game' && (
+          <GameCanvas onComplete={handleTrailsComplete} onExit={() => setView('menu')} testType="A" totalPoints={25} lang={lang} />
+        )
+      }
 
       {/* Trails B Test Flow */}
-      {view === 'trails-b-intro' && (
-        <div className="glass-panel p-8 max-w-md w-full animate-fadeIn z-10 relative border-violet-500/20 shadow-violet-500/10">
-          <button onClick={() => setView('menu')} className="absolute top-6 left-6 text-slate-400 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-white/10 group">
-            <span className="group-hover:-translate-x-1 transition-transform block">←</span>
-          </button>
-          <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center text-violet-400 text-xl font-bold border border-violet-500/30 mx-auto mb-4">B</div>
-          <h2 className="title mb-4 text-2xl font-bold text-white">{t.trails_b_intro}</h2>
-          <p className="text-secondary mb-8 leading-relaxed text-sm bg-slate-800/50 p-4 rounded-xl border border-white/5">
-            {t.trails_b_desc}
-          </p>
-          <button onClick={startTrailsB} className="btn-primary w-full py-4 text-lg font-bold shadow-lg shadow-violet-900/20 bg-gradient-to-r from-violet-600 to-indigo-600 border-none">{t.trails_b_start}</button>
-        </div>
-      )}
+      {
+        view === 'trails-b-intro' && (
+          <IntroScreen
+            accent="#8b5cf6"
+            accentBg="rgba(139,92,246,0.12)"
+            accentBorder="rgba(139,92,246,0.25)"
+            badge="Protocol II · NCT-B"
+            label="B"
+            title={t.trails_b_intro}
+            desc={t.trails_b_desc}
+            ctaLabel={t.trails_b_start}
+            onBack={() => setView('menu')}
+            onStart={startTrailsB}
+            meta={[{ label: 'Duration', value: '~4 min' }, { label: 'Points', value: '25' }, { label: 'Norm', value: '< 90s' }]}
+          />
+        )
+      }
 
-      {view === 'trails-b-game' && (
-        <GameCanvas onComplete={handleTrailsComplete} onExit={() => setView('menu')} testType="B" lang={lang} />
-      )}
+      {
+        view === 'trails-b-game' && (
+          <GameCanvas onComplete={handleTrailsComplete} onExit={() => setView('menu')} testType="B" lang={lang} />
+        )
+      }
 
-      {view === 'trails-results' && (
-        <div className="w-full max-w-md z-10">
-          <Results currentTime={trailsTime} testId={activeTest} onRetry={() => setView('menu')} lang={lang} />
-        </div>
-      )}
+      {
+        view === 'trails-results' && (
+          <div style={{ minHeight: '100vh', width: '100%', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+            <div style={{ width: '100%', maxWidth: 480 }}>
+              <Results currentTime={trailsTime} testId={activeTest} onRetry={() => setView('menu')} lang={lang} />
+            </div>
+          </div>
+        )
+      }
 
       {/* Stroop Test Flow */}
-      {view === 'stroop' && (
-        <div className="w-full h-full flex flex-col z-10">
-          <StroopTest
-            onComplete={handleStroopComplete}
-            onExit={() => setView('menu')}
-            lang={lang}
-          />
-        </div>
-      )}
+      {
+        view === 'stroop' && (
+          <div style={{ minHeight: '100vh', width: '100%', background: '#030712', display: 'flex', flexDirection: 'column' }}>
+            <StroopTest
+              onComplete={handleStroopComplete}
+              onExit={() => setView('menu')}
+              lang={lang}
+            />
+          </div>
+        )
+      }
 
       {/* Ocular Tests Flow */}
-      {view === 'ocular' && (
-        <div className="fixed inset-0 w-full h-full flex flex-col z-50 bg-slate-950 overflow-y-auto pt-8">
-          <OcularMenu
-            onExit={() => setView('menu')}
-            onUpdate={handleOcularComplete}
-            lang={lang}
-          />
-        </div>
-      )}
+      {
+        view === 'ocular' && (
+          <div style={{ minHeight: '100vh', width: '100%', background: '#030712', overflowY: 'auto' }}>
+            <OcularMenu
+              onExit={() => setView('menu')}
+              onUpdate={handleOcularComplete}
+              lang={lang}
+            />
+          </div>
+        )
+      }
 
-    </div>
+    </div >
   )
 }
 

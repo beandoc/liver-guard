@@ -177,153 +177,163 @@ const OcularMenu = ({ onExit, lang = 'en' }) => {
 
     // Default Menu View
     return (
-        <div className="w-full max-w-6xl mx-auto animate-fadeIn relative z-10 p-4 lg:p-12 pb-24">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 border-b border-white/5 pb-6 md:pb-8 gap-4">
-                <div className="text-left w-full">
-                    <h2 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                        {t.ocular_tests_title}
-                    </h2>
-                    <p className="text-slate-400 text-sm max-w-lg leading-relaxed mb-4">
-                        {t.ocular_tests_subtitle || "Advanced clinical grade eye movement analysis for detection of hepatic encephalopathy."}
-                    </p>
+        <div style={{ minHeight: '100vh', width: '100%', background: '#030712', color: 'white', position: 'relative', overflowX: 'hidden' }}>
+            <style>{`
+                @keyframes ocularOrbFloat {
+                    0%, 100% { transform: translate(0,0) scale(1); }
+                    50% { transform: translate(2%, 3%) scale(1.04); }
+                }
+                .ocular-card {
+                    background: rgba(255,255,255,0.03);
+                    border: 1px solid rgba(255,255,255,0.07);
+                    border-radius: 20px;
+                    padding: 24px;
+                    cursor: pointer;
+                    transition: transform 0.3s cubic-bezier(0.23,1,0.32,1), box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+                    position: relative;
+                    overflow: hidden;
+                    text-align: left;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                }
+                .ocular-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); }
+                .ocular-card:active { transform: scale(0.98); }
+            `}</style>
 
-                    {Object.keys(sessionResults).length > 0 && (
-                        <div className="inline-flex items-center gap-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 animate-fadeIn">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] text-indigo-400 uppercase font-bold tracking-widest">Composite MHE Index</span>
-                                <span className="text-2xl font-black text-white">
-                                    {Math.round(Object.values(sessionResults).reduce((a, b) => a + b.score, 0) / Object.keys(sessionResults).length)}
-                                </span>
-                            </div>
-                            <div className="h-10 w-px bg-white/10 mx-2" />
-                            <div className="flex flex-col">
-                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Risk Level</span>
-                                <span className={`text-sm font-bold ${Object.values(sessionResults).every(r => r.score > 70) ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {Object.values(sessionResults).every(r => r.score > 70) ? 'LOW RISK' : 'FOLLOW-UP REQ.'}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                <button onClick={onExit} className="w-full md:w-auto text-sm text-slate-400 hover:text-white transition-colors border border-slate-700 rounded-lg px-4 py-3 md:py-2 bg-slate-800/50 hover:bg-slate-700 flex items-center justify-center gap-2 touch-manipulation">
-                    <span>✕</span> {t.back_menu}
-                </button>
+            {/* Background orbs */}
+            <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+                <div style={{ position: 'absolute', top: '-15%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(79,70,229,0.14) 0%, transparent 70%)', animation: 'ocularOrbFloat 9s ease-in-out infinite' }} />
+                <div style={{ position: 'absolute', bottom: '-15%', right: '-10%', width: '45%', height: '45%', background: 'radial-gradient(circle, rgba(14,165,233,0.1) 0%, transparent 70%)', animation: 'ocularOrbFloat 11s ease-in-out infinite reverse' }} />
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)', backgroundSize: '72px 72px', maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%)', WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%)' }} />
             </div>
 
-            {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Navbar */}
+            <nav style={{ position: 'relative', zIndex: 10, maxWidth: 1100, margin: '0 auto', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg, #4f46e5, #0ea5e9)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(79,70,229,0.4)' }}>
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.02em' }}>Liver<span style={{ color: '#818cf8' }}>Guard</span></span>
+                </div>
+                <button onClick={onExit} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#64748b', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}>
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    {t.back_menu}
+                </button>
+            </nav>
 
-                {/* Calibration Card - Hero */}
-                <div className="lg:col-span-3 mb-2 md:mb-4">
-                    <div
-                        className={`w-full p-6 md:p-8 rounded-3xl border transition-all relative overflow-hidden group text-left ${isCalibrated
-                            ? 'bg-emerald-900/10 border-emerald-500/20'
-                            : 'bg-gradient-to-br from-indigo-900/40 via-purple-900/20 to-slate-900/40 border-indigo-500/30'
-                            }`}
-                    >
-                        {/* Abstract Background Shapes */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-indigo-500/20 transition-colors duration-500"></div>
+            {/* Hero header */}
+            <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '16px 24px 36px', maxWidth: 1100, margin: '0 auto' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(79,70,229,0.1)', border: '1px solid rgba(79,70,229,0.25)', borderRadius: 9999, padding: '5px 14px', marginBottom: 18 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4f46e5', display: 'inline-block' }} />
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#a5b4fc', letterSpacing: '0.05em' }}>Ocular Biomarker Protocol</span>
+                </div>
+                <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '0 0 10px' }}>
+                    <span style={{ color: 'white' }}>{t.ocular_tests_title} </span>
+                    <span style={{ background: 'linear-gradient(135deg, #60a5fa, #818cf8, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Suite</span>
+                </h1>
+                <p style={{ color: '#475569', fontSize: '0.95rem', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>
+                    {t.ocular_tests_subtitle || 'Advanced clinical-grade eye movement analysis for MHE detection.'}
+                </p>
+            </div>
 
-                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between relative z-10 gap-6">
-                            <div className="flex items-center gap-4 md:gap-6">
-                                <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex-shrink-0 flex items-center justify-center text-xl md:text-3xl shadow-xl border backdrop-blur-sm ${isCalibrated ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-white/10'
-                                    }`}>
-                                    {isCalibrated ? '✓' : '👁'}
-                                </div>
-                                <div>
-                                    <div className={`font-bold text-lg md:text-2xl mb-1 ${isCalibrated ? 'text-emerald-400' : 'text-white'}`}>
-                                        {isCalibrated ? 'System Calibrated & Ready' : 'Calibrate Eye Tracker'}
-                                    </div>
-                                    <p className="text-slate-400 text-xs md:text-base max-w-md">
-                                        {isCalibrated ? 'Optical engine locked. Full 5-test battery takes approx. 4 minutes.' : 'Mandatory Phase A Setup: Iris Template Capture.'}
-                                    </p>
-                                </div>
+            <div style={{ position: 'relative', zIndex: 10, maxWidth: 1100, margin: '0 auto', padding: '0 20px 48px' }}>
+                {/* Session score bar */}
+                {Object.keys(sessionResults).length > 0 && (
+                    <div style={{ background: 'rgba(79,70,229,0.08)', border: '1px solid rgba(79,70,229,0.2)', borderRadius: 16, padding: '16px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                        <div>
+                            <div style={{ fontSize: '10px', color: '#818cf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Composite MHE Index</div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: 'white', fontFamily: 'monospace', lineHeight: 1 }}>
+                                {Math.round(Object.values(sessionResults).reduce((a, b) => a + b.score, 0) / Object.keys(sessionResults).length)}
                             </div>
+                        </div>
+                        <div style={{ width: 1, height: 40, background: 'rgba(255,255,255,0.08)' }} />
+                        <div>
+                            <div style={{ fontSize: '10px', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Risk Level</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: Object.values(sessionResults).every(r => r.score > 70) ? '#34d399' : '#f87171' }}>
+                                {Object.values(sessionResults).every(r => r.score > 70) ? 'LOW RISK' : 'FOLLOW-UP REQUIRED'}
+                            </div>
+                        </div>
+                        <div style={{ marginLeft: 'auto', fontSize: '11px', color: '#475569' }}>{Object.keys(sessionResults).length} / {Object.keys(OCULAR_TESTS).length} tests complete</div>
+                    </div>
+                )}
 
-                            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                                {isCalibrated && (
-                                    <button
-                                        onClick={startCalibration}
-                                        className="px-6 py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-slate-700"
-                                    >
-                                        Recalibrate
-                                    </button>
-                                )}
-                                <button
-                                    onClick={isCalibrated ? () => handleSelect('fix') : startCalibration}
-                                    className={`px-6 py-3 rounded-xl text-sm font-bold transition-transform hover:scale-105 whitespace-nowrap shadow-lg flex items-center justify-center gap-2 ${isCalibrated
-                                        ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                                        : 'bg-white text-indigo-950 shadow-indigo-500/20'
-                                        }`}
-                                >
-                                    {isCalibrated ? (
-                                        <>
-                                            Start Clinical Protocol <span className="ml-1">➜</span>
-                                        </>
-                                    ) : (
-                                        'Start Setup'
-                                    )}
+                {/* Calibration hero card */}
+                <div style={{ background: isCalibrated ? 'rgba(16,185,129,0.06)' : 'rgba(79,70,229,0.08)', border: `1px solid ${isCalibrated ? 'rgba(16,185,129,0.2)' : 'rgba(79,70,229,0.25)'}`, borderRadius: 20, padding: '28px', marginBottom: 20, position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, background: `radial-gradient(circle, ${isCalibrated ? 'rgba(16,185,129,0.12)' : 'rgba(79,70,229,0.15)'} 0%, transparent 70%)`, borderRadius: '50%', pointerEvents: 'none' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, position: 'relative', zIndex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <div style={{ width: 52, height: 52, borderRadius: 14, background: isCalibrated ? 'rgba(16,185,129,0.15)' : 'linear-gradient(135deg, #4f46e5, #7c3aed)', border: `1px solid ${isCalibrated ? 'rgba(16,185,129,0.3)' : 'rgba(79,70,229,0.4)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0 }}>
+                                {isCalibrated ? '✓' : '👁'}
+                            </div>
+                            <div>
+                                <div style={{ fontWeight: 800, fontSize: '1.1rem', color: isCalibrated ? '#34d399' : 'white', marginBottom: 4 }}>
+                                    {isCalibrated ? 'System Calibrated & Ready' : 'Calibrate Eye Tracker'}
+                                </div>
+                                <p style={{ color: '#475569', fontSize: '0.85rem', margin: 0 }}>
+                                    {isCalibrated ? 'Optical engine locked. Full 5-test battery takes approx. 4 minutes.' : 'Mandatory Phase A Setup: Iris Template Capture.'}
+                                </p>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            {isCalibrated && (
+                                <button onClick={startCalibration} style={{ padding: '10px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#64748b', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.color = 'white'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; }}>
+                                    Recalibrate
                                 </button>
-                            </div>
+                            )}
+                            <button onClick={isCalibrated ? () => handleSelect('fix') : startCalibration} style={{ padding: '10px 22px', background: isCalibrated ? '#10b981' : '#4f46e5', border: 'none', borderRadius: 10, color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', boxShadow: `0 0 24px -6px ${isCalibrated ? '#10b981' : '#4f46e5'}`, transition: 'all 0.3s', display: 'flex', alignItems: 'center', gap: 8 }}
+                                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}>
+                                {isCalibrated ? 'Start Clinical Protocol' : 'Start Setup'}
+                                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                {/* Test Cards */}
-                {Object.values(OCULAR_TESTS).map((test, idx) => {
-                    const isCompleted = !!sessionResults[test.id];
-                    return (
-                        <button
-                            key={test.id}
-                            onClick={() => handleSelect(test.id)}
-                            className={`group relative overflow-hidden bg-slate-900/40 border rounded-3xl p-0 transition-all active:scale-[0.98] hover:translate-y-[-8px] hover:shadow-2xl text-left flex flex-col h-full backdrop-blur-xl min-h-[180px] ${isCompleted ? 'border-emerald-500/30 shadow-[0_5px_20px_rgba(16,185,129,0.05)]' : 'border-slate-800 hover:border-indigo-500/40 hover:shadow-indigo-900/20'
-                                }`}
-                            style={{ animationDelay: `${idx * 100}ms` }}
-                        >
-                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-                            <div className="p-6 md:p-8 flex flex-col h-full relative z-10">
-                                <div className="flex justify-between items-start mb-4 md:mb-6">
-                                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center font-mono text-xs md:text-sm font-bold border shadow-inner transition-all duration-300 ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500'
-                                        }`}>
+                {/* Test Cards Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                    {Object.values(OCULAR_TESTS).map((test, idx) => {
+                        const isCompleted = !!sessionResults[test.id];
+                        const cardAccents = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ec4899'];
+                        const cardAccent = cardAccents[idx % cardAccents.length];
+                        return (
+                            <button
+                                key={test.id}
+                                className="ocular-card"
+                                onClick={() => handleSelect(test.id)}
+                                onMouseEnter={e => e.currentTarget.style.boxShadow = `0 20px 40px -10px ${isCompleted ? 'rgba(16,185,129,0.2)' : cardAccent + '30'}`}
+                                onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                            >
+                                {/* Glow orb */}
+                                <div style={{ position: 'absolute', top: -20, right: -20, width: 100, height: 100, background: `radial-gradient(circle, ${isCompleted ? 'rgba(16,185,129,0.15)' : cardAccent + '20'} 0%, transparent 70%)`, borderRadius: '50%', pointerEvents: 'none' }} />
+                                {/* Header */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: 11, background: isCompleted ? 'rgba(16,185,129,0.12)' : `${cardAccent}18`, border: `1px solid ${isCompleted ? 'rgba(16,185,129,0.3)' : cardAccent + '35'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'monospace', fontWeight: 800, fontSize: '0.75rem', color: isCompleted ? '#34d399' : cardAccent }}>
                                         {test.id.toUpperCase()}
                                     </div>
                                     {isCompleted ? (
-                                        <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                                            ✓
-                                        </div>
+                                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34d399', fontSize: 12 }}>✓</div>
                                     ) : (
-                                        <div className="w-8 h-8 rounded-full border border-slate-700 flex items-center justify-center text-slate-500 group-hover:border-indigo-500/50 group-hover:text-indigo-400 transition-all bg-slate-900/50">
-                                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                            </svg>
-                                        </div>
+                                        <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 12 }}>→</div>
                                     )}
                                 </div>
-
-                                <h3 className="text-lg md:text-xl font-bold text-slate-200 group-hover:text-white mb-2 md:mb-3 transition-colors">
-                                    {t[`${test.id}_title`]}
-                                </h3>
-
-                                <p className="text-xs md:text-sm text-slate-500 group-hover:text-slate-400 transition-colors leading-relaxed mb-4 md:mb-6 flex-1">
-                                    {t[`${test.id}_desc`]}
-                                </p>
-
-                                <div className="pt-4 md:pt-6 border-t border-white/5 flex items-center justify-between">
-                                    <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider ${isCompleted ? 'text-emerald-500/70' : 'text-slate-600 group-hover:text-indigo-300'}`}>
-                                        {isCompleted ? 'Result Locked' : 'Protocol v1.0'}
-                                    </span>
-                                    {isCompleted && (
-                                        <span className="text-xs text-emerald-400 font-mono font-bold">
-                                            {sessionResults[test.id].score}
-                                        </span>
-                                    )}
+                                {/* Labels */}
+                                <div>
+                                    <div style={{ fontSize: '9px', fontWeight: 700, color: isCompleted ? '#34d399' : cardAccent, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4, opacity: 0.8 }}>
+                                        {isCompleted ? `Score: ${sessionResults[test.id].score}` : 'Protocol v1.0'}
+                                    </div>
+                                    <div style={{ fontSize: '1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.01em', marginBottom: 6 }}>{t[`${test.id}_title`]}</div>
+                                    <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.5 }}>{t[`${test.id}_desc`]}</div>
                                 </div>
-                            </div>
-                        </button>
-                    );
-                })}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );

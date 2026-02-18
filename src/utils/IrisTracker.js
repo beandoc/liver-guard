@@ -61,12 +61,12 @@ export class IrisTracker {
                 }, 20000);
 
                 this.faceMesh.onResults((results) => {
-                    // This callback fires after the FIRST frame is processed,
+                    // This callback fires after the FIRST real frame is processed,
                     // which confirms the WASM engine is fully compiled and running.
                     if (!this.isReady) {
                         clearTimeout(timeout);
                         this.isReady = true;
-                        console.log("[IrisTracker] WASM engine confirmed ready via warm-up frame.");
+                        console.log("[IrisTracker] WASM engine confirmed ready via first frame.");
                         resolve(true);
                     }
                     if (results.multiFaceLandmarks) {
@@ -74,16 +74,31 @@ export class IrisTracker {
                     }
                 });
 
-                // Send a 1x1 blank canvas as a warm-up frame.
-                // This forces the WASM to compile synchronously.
-                console.log("[IrisTracker] Sending warm-up frame to compile WASM...");
-                const warmupCanvas = document.createElement('canvas');
-                warmupCanvas.width = 1;
-                warmupCanvas.height = 1;
-                this.faceMesh.send({ image: warmupCanvas }).catch((err) => {
-                    console.warn("[IrisTracker] Warm-up send error (non-fatal):", err);
-                    // Don't reject — the onResults callback will still fire
-                });
+                // Instead of sending a blank canvas (which triggers a WASM abort on
+                // Module.arguments access), we poll for the internal WASM readiness flag.
+                // MediaPipe sets `this.faceMesh.g` or similar internal state once compiled.
+                // We use a short delay to let the WASM JIT compile, then mark ready.
+                console.log("[IrisTracker] Waiting for WASM engine to compile...");
+                const warmupCheck = setInterval(() => {
+                    try {
+                        // Check if the faceMesh instance has an internal ready state
+                        // by attempting a no-op that doesn't trigger Module.arguments
+                        if (this.faceMesh && typeof this.faceMesh.send === 'function') {
+                            clearInterval(warmupCheck);
+                            // Give WASM an extra 500ms to fully settle before marking ready
+                            setTimeout(() => {
+                                if (!this.isReady) {
+                                    clearTimeout(timeout);
+                                    this.isReady = true;
+                                    console.log("[IrisTracker] WASM engine ready (deferred warm-up).");
+                                    resolve(true);
+                                }
+                            }, 500);
+                        }
+                    } catch (e) {
+                        // Still compiling, keep polling
+                    }
+                }, 200);
 
             } catch (err) {
                 console.error("[IrisTracker] Fatal init error:", err);

@@ -112,34 +112,38 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
 
     if (stage === STAGES.INTRO) {
         return (
-            <div className="glass-panel p-8 max-w-md w-full animate-fadeIn text-center mx-auto">
-                <h2 className="title text-2xl mb-4">{t.stroop_intro_title}</h2>
-                <div className="space-y-6 text-left text-secondary">
-                    <p>{t.stroop_desc}</p>
-
-                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 backdrop-blur-sm">
-                        <h3 className="font-bold text-white mb-2">{t.part1_title}</h3>
-                        <p className="text-sm">{t.part1_instr1} <span className="font-bold text-red-500">####</span>.</p>
-                        <p className="text-sm">{t.part1_instr2} <span className="text-white font-bold">{t.ink_color}</span> {t.part1_instr2_suffix}</p>
+            <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+                <div className="glass-panel p-8 max-w-md w-full text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(79,70,229,0.1)', border: '1px solid rgba(79,70,229,0.25)', borderRadius: 9999, padding: '4px 14px', marginBottom: 24 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Stroop Color Test</span>
                     </div>
-
-                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 backdrop-blur-sm">
-                        <h3 className="font-bold text-white mb-2">{t.part2_title}</h3>
-                        <p className="text-sm">{t.part2_instr1} <span className="font-bold text-blue-500">{t.red}</span>.</p>
-                        <p className="text-sm">{t.part2_instr2}</p>
+                    <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'white', marginBottom: 16, letterSpacing: '-0.02em' }}>{t.stroop_intro_title}</h2>
+                    <div className="space-y-4 text-left" style={{ marginBottom: 32 }}>
+                        <p style={{ color: '#64748b', lineHeight: 1.7, fontSize: '0.9rem' }}>{t.stroop_desc}</p>
+                        <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 12, padding: '16px' }}>
+                            <h3 style={{ fontWeight: 700, color: 'white', marginBottom: 6, fontSize: '0.9rem' }}>{t.part1_title}</h3>
+                            <p style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: 1.6 }}>{t.part1_instr1} <span style={{ fontWeight: 700, color: '#ef4444' }}>####</span>. {t.part1_instr2} <span style={{ color: 'white', fontWeight: 700 }}>{t.ink_color}</span> {t.part1_instr2_suffix}</p>
+                        </div>
+                        <div style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '16px' }}>
+                            <h3 style={{ fontWeight: 700, color: 'white', marginBottom: 6, fontSize: '0.9rem' }}>{t.part2_title}</h3>
+                            <p style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: 1.6 }}>{t.part2_instr1} <span style={{ fontWeight: 700, color: '#3b82f6' }}>{t.red}</span>. {t.part2_instr2}</p>
+                        </div>
                     </div>
+                    <button style={{ width: '100%', padding: '15px', background: '#4f46e5', border: 'none', borderRadius: 12, color: 'white', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', boxShadow: '0 0 30px -8px #4f46e5' }} onClick={() => startStage(STAGES.OFF_STAGE)}>{t.start}</button>
                 </div>
-                <button className="btn-primary w-full mt-8" onClick={() => startStage(STAGES.OFF_STAGE)}>{t.start}</button>
             </div>
         );
     }
 
     if (stage === 'interstitial') {
         return (
-            <div className="glass-panel p-8 max-w-md w-full animate-fadeIn text-center mx-auto">
-                <h2 className="text-2xl font-bold mb-4 text-white">{t.part1_header} Complete</h2>
-                <p className="text-secondary mb-6">Get ready for Part 2.</p>
-                <button className="btn-primary w-full" onClick={() => startStage(STAGES.ON_STAGE)}>{t.start} Part 2</button>
+            <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: '40px', maxWidth: 440, width: '100%', textAlign: 'center' }}>
+                    <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '1.5rem' }}>✓</div>
+                    <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white', marginBottom: 8, letterSpacing: '-0.02em' }}>{t.part1_header} Complete</h2>
+                    <p style={{ color: '#64748b', marginBottom: 32, lineHeight: 1.6 }}>Part 1 data recorded. Get ready for the interference challenge.</p>
+                    <button style={{ width: '100%', padding: '15px', background: '#8b5cf6', border: 'none', borderRadius: 12, color: 'white', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', boxShadow: '0 0 30px -8px #8b5cf6' }} onClick={() => startStage(STAGES.ON_STAGE)}>{t.start} Part 2</button>
+                </div>
             </div>
         );
     }
@@ -185,19 +189,24 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
     }
 
     return (
-        <div className="flex flex-col h-full w-full max-w-md mx-auto relative animate-fadeIn justify-between">
+        <div className="flex flex-col h-full w-full max-w-lg mx-auto relative animate-fadeIn justify-between" style={{ minHeight: '100vh' }}>
             <div className="absolute top-4 w-full flex justify-between items-center px-4 md:px-6 text-slate-500 text-sm font-semibold tracking-widest uppercase z-50">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={onExit}
-                        className="w-8 h-8 rounded-full bg-slate-800/80 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                        className="w-9 h-9 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors backdrop-blur-md"
                         aria-label="Exit Test"
                     >
                         ✕
                     </button>
-                    <span>{stage === STAGES.OFF_STAGE ? t.part1_header : t.part2_header}</span>
+                    <span className="text-xs">{stage === STAGES.OFF_STAGE ? t.part1_header : t.part2_header}</span>
                 </div>
-                <span>{correctCount} / {REQUIRED_CORRECT_RUNS}</span>
+                <div className="flex items-center gap-2 bg-black/60 border border-white/10 rounded-full px-4 py-1.5 backdrop-blur-md">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-widest">Score</span>
+                    <span className="text-white font-black text-sm">{correctCount}</span>
+                    <span className="text-slate-600">/</span>
+                    <span className="text-slate-400 text-sm">{REQUIRED_CORRECT_RUNS}</span>
+                </div>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center">
@@ -215,18 +224,19 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
                 </div>
             </div>
 
-            <div className="w-full pb-12 px-4">
-                <div className="flex w-full gap-3 mb-8 h-20">
+            <div className="w-full pb-10 px-4">
+                <div className="flex w-full gap-4 mb-6 h-24">
                     {options.map((opt, idx) => (
                         <button
                             key={idx}
                             onClick={() => handleOptionClick(opt)}
                             aria-label={`Select ${opt.name}`}
-                            className="flex-1 btn-primary text-xl active:scale-95 transition-all shadow-lg border-t border-white/10 hover:brightness-110 py-6 font-bold tracking-wider"
+                            className="flex-1 active:scale-95 transition-all shadow-lg font-bold tracking-wider text-white text-lg rounded-2xl"
                             style={{
-                                background: `linear-gradient(135deg, ${opt.value}, ${opt.value}bb)`,
-                                border: `1px solid ${opt.value}55`,
-                                borderTop: `1px solid ${opt.value}aa`
+                                background: `linear-gradient(160deg, ${opt.value}dd, ${opt.value}99)`,
+                                border: `1px solid ${opt.value}66`,
+                                boxShadow: `0 4px 20px -4px ${opt.value}66`,
+                                letterSpacing: '-0.01em',
                             }}
                         >
                             {opt.name}
