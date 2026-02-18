@@ -27,8 +27,8 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
     const [currentStimulus, setCurrentStimulus] = useState(null);
     const [options, setOptions] = useState([]);
     const [startTime, setStartTime] = useState(0);
+    const pendingStageRef = useRef(null); // used to trigger Part II after state flush
 
-    // New State Structure for Requirements
     const [results, setResults] = useState({
         off: { time: 0, trials: 0 },
         on: { time: 0, trials: 0 }
@@ -37,23 +37,14 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
     const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const colors = getColorData(lang);
 
-    // Helper to get random color
     const getRandomColor = (excludeId = null) => {
         const available = excludeId ? colors.filter(c => c.id !== excludeId) : colors;
         return available[Math.floor(Math.random() * available.length)];
     };
 
-    // Helper to shuffle array
     const shuffle = (array) => [...array].sort(() => Math.random() - 0.5);
 
-    const startStage = (stageName) => {
-        setStage(stageName);
-        setCorrectCount(0);
-        setTotalTrials(0);
-        setResults(prev => ({ ...prev, [stageName === STAGES.OFF_STAGE ? 'off' : 'on']: { time: 0, trials: 0 } }));
-        nextTrial(stageName, 0, 0);
-    };
-
+    // nextTrial must be declared BEFORE startStage (arrow fns are not hoisted)
     const nextTrial = (currentStage, currentCorrect, currentTotal) => {
         if (currentCorrect >= REQUIRED_CORRECT_RUNS) {
             if (currentStage === STAGES.OFF_STAGE) {
@@ -74,15 +65,27 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
             type = 'incongruent';
         }
 
-        const currentOptions = shuffle([...colors]);
-
-        setCurrentStimulus({
-            text,
-            ink: inkColor,
-            type
-        });
-        setOptions(currentOptions);
+        setCurrentStimulus({ text, ink: inkColor, type });
+        setOptions(shuffle([...colors]));
         setStartTime(performance.now());
+    };
+
+    // useEffect fires AFTER React has flushed state — safe to call nextTrial here
+    useEffect(() => {
+        if (pendingStageRef.current) {
+            const stageName = pendingStageRef.current;
+            pendingStageRef.current = null;
+            nextTrial(stageName, 0, 0);
+        }
+    }, [correctCount]); // correctCount will be 0 after startStage resets it
+
+    const startStage = (stageName) => {
+        setStage(stageName);
+        setCorrectCount(0);
+        setTotalTrials(0);
+        setResults(prev => ({ ...prev, [stageName === STAGES.OFF_STAGE ? 'off' : 'on']: { time: 0, trials: 0 } }));
+        // Queue the first trial to fire after React flushes the state reset
+        pendingStageRef.current = stageName;
     };
 
     const handleOptionClick = (selectedColor) => {
