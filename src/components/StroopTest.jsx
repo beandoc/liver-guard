@@ -193,11 +193,12 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
 
             <div className="flex-1 flex flex-col items-center justify-center">
                 <div
-                    className="text-8xl font-bold transition-all duration-100 transform font-mono"
+                    className="text-[10rem] font-bold transition-all duration-100 transform font-mono select-none"
                     style={{
                         color: currentStimulus?.ink.value,
-                        textShadow: '0 0 40px rgba(0,0,0,0.5)',
-                        letterSpacing: '-2px'
+                        textShadow: '0 0 50px rgba(0,0,0,0.5)',
+                        letterSpacing: '-2px',
+                        lineHeight: 1
                     }}
                 >
                     {currentStimulus?.text}
@@ -210,8 +211,7 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
                         <button
                             key={idx}
                             onClick={() => handleOptionClick(opt)}
-                            className="flex-1 btn-primary text-xl active:scale-95 transition-all shadow-lg border-t-0"
-                            style={{ background: 'linear-gradient(to bottom, #1e293b, #0f172a)' }}
+                            className="flex-1 btn-primary text-xl active:scale-95 transition-all shadow-lg border-t border-white/10 hover:brightness-110 py-6 font-bold tracking-wider"
                         >
                             {opt.name}
                         </button>

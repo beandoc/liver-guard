@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const CALIBRATION_POINTS = [
     { x: 10, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 },
@@ -9,56 +9,75 @@ const CALIBRATION_POINTS = [
 
 const GazeCalibration = ({ onComplete, onCancel }) => {
     const [counts, setCounts] = useState(Array(9).fill(0));
-    const [activePointIndex, setActivePointIndex] = useState(0); // Guide user one by one? Or let them click any? Standard is clicking any until green.
-    // Let's go with "Click each point 5 times" strategy, free choice or guided. Guided is better for UX.
-
     const [isCalibrating, setIsCalibrating] = useState(true);
-    const [accuracyScore, setAccuracyScore] = useState(null);
     const [webgazerReady, setWebgazerReady] = useState(false);
+    const [cameraError, setCameraError] = useState(null);
 
     useEffect(() => {
-        const initWebgazer = async () => {
+        let loadInterval;
+
+        const setupWebgazer = async () => {
             if (window.webgazer) {
                 try {
+                    // Cleanup any existing instance
+                    try { await window.webgazer.end(); } catch (e) { }
+
                     await window.webgazer.setRegression('ridge')
-                        .setTracker('Tffacmesh') // FaceMesh is robust
+                        .setTracker('Tffacmesh')
                         .begin();
 
                     window.webgazer.showVideoPreview(true)
-                        .showPredictionPoints(true) // Show where it thinks you're looking
-                        .applyKalmanFilter(true); // Smooths the gaze
+                        .showPredictionPoints(true)
+                        .applyKalmanFilter(true);
 
-                    // Style the video (move it out of the way or center it for setup)
-                    const video = document.getElementById('webgazerVideoFeed');
-                    if (video) {
-                        video.style.position = 'absolute';
-                        video.style.top = '10px';
-                        video.style.left = '50%';
-                        video.style.transform = 'translateX(-50%)';
-                        video.style.width = '240px';
-                        video.style.height = 'auto';
-                        video.style.zIndex = '1000';
-                        video.style.borderRadius = '1rem';
-                        video.style.border = '2px solid #6366f1';
-                    }
+                    // Force style the video element created by WebGazer
+                    const styleVideo = () => {
+                        const videoElement = document.getElementById('webgazerVideoFeed');
+                        if (videoElement) {
+                            videoElement.style.position = 'absolute';
+                            videoElement.style.top = '20px';
+                            videoElement.style.left = '50%';
+                            videoElement.style.transform = 'translateX(-50%)';
+                            videoElement.style.width = '320px';
+                            videoElement.style.height = '240px';
+                            videoElement.style.zIndex = '9999'; // Very high z-index
+                            videoElement.style.borderRadius = '12px';
+                            videoElement.style.border = '2px solid #6366f1';
+                            videoElement.style.display = 'block';
+                        }
+                    };
+
+                    styleVideo();
+                    // Retry setting style in case it gets overwritten or loaded late
+                    setTimeout(styleVideo, 1000);
+                    setTimeout(styleVideo, 3000);
 
                     setWebgazerReady(true);
                 } catch (err) {
                     console.error("WebGazer Init Error:", err);
+                    setCameraError("Camera access denied or not found. Please check browser permissions.");
                 }
             }
         };
 
-        initWebgazer();
+        // Robust loading check
+        if (window.webgazer) {
+            setupWebgazer();
+        } else {
+            // Poll for script load
+            loadInterval = setInterval(() => {
+                if (window.webgazer) {
+                    clearInterval(loadInterval);
+                    setupWebgazer();
+                }
+            }, 500);
+        }
 
         return () => {
-            // Cleanup: pause or clear
+            if (loadInterval) clearInterval(loadInterval);
             if (window.webgazer) {
-                // window.webgazer.end(); // Often buggy to restart, maybe just pause?
-                // For now, pausing execution is safer if we want to resume in tests
-                // window.webgazer.pause(); 
-                // But typically for React unmount, we might want to hide the video and points
                 window.webgazer.showVideoPreview(false).showPredictionPoints(false);
+                // We keep it running in background for tests, just hide UI
             }
         };
     }, []);
@@ -69,23 +88,15 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
         const newCounts = [...counts];
         newCounts[index] += 1;
         setCounts(newCounts);
-
-        // Visual feedback (flash or sound could be added)
-
-        // Use webgazer's recordScreenPosition logic internally handled by click listener usually, 
-        // but explicit recordScreenPosition can be called if we manually handle events.
-        // WebGazer by default binds to window click. 
-        // We are relying on the user looking at the point they click.
     };
 
     const attemptValidation = () => {
         setIsCalibrating(false);
-        // Hide points, show a target moving to check accuracy
         window.webgazer.showPredictionPoints(true);
     };
 
     const finish = () => {
-        window.webgazer.showVideoPreview(false).showPredictionPoints(false); // Hide debug UI
+        window.webgazer.showVideoPreview(false).showPredictionPoints(false);
         if (onComplete) onComplete();
     };
 
@@ -94,16 +105,35 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
     return (
         <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center">
             {/* Header/Instructions */}
-            <div className="absolute top-20 text-center pointer-events-none w-full px-4">
+            <div className="absolute top-0 pt-24 text-center pointer-events-none w-full px-4 z-[10001]">
+                {/* High Z-index to sit above video */}
                 <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
                     Eye Calibration
                 </h2>
-                <p className="text-slate-400 text-sm mt-2">
-                    {isCalibrating
-                        ? "Look at each colored dot and click it 5 times. Keep your head still."
-                        : "Verification: Follow the cursor with your eyes. If accurate, click Finish."}
-                </p>
-                {!webgazerReady && <p className="text-yellow-500 mt-2 animate-pulse">Initializing Camera...</p>}
+                <div className="bg-black/40 backdrop-blur-sm inline-block px-4 py-2 rounded-lg mt-2">
+                    <p className="text-slate-300 text-sm font-medium">
+                        {isCalibrating
+                            ? "Look at each dot and click it 5 times. Keep head still."
+                            : "Follow cursor with eyes. Click Finish if accurate."}
+                    </p>
+                </div>
+
+                {/* Status Messages */}
+                {!webgazerReady && !cameraError && (
+                    <div className="mt-4 flex flex-col items-center gap-2">
+                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-blue-400 text-xs">Initializing...</p>
+                    </div>
+                )}
+
+                {cameraError && (
+                    <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg pointer-events-auto">
+                        <p className="text-red-400 font-bold">{cameraError}</p>
+                        <button onClick={() => window.location.reload()} className="mt-2 text-xs bg-red-500/20 px-3 py-1 rounded hover:bg-red-500/40 text-red-200">
+                            Reload Page
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Calibration Points */}
@@ -112,7 +142,7 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
                 const done = count >= 5;
                 const opacity = done ? 0.3 : 1;
                 const scale = 1 + (count * 0.1);
-                const color = done ? '#10b981' : '#f43f5e'; // Green if done, Red if not
+                const color = done ? '#10b981' : '#f43f5e';
 
                 return (
                     <button
@@ -125,12 +155,12 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
                             backgroundColor: color,
                             borderColor: 'white',
                             opacity: opacity,
-                            cursor: 'pointer' // Explicitly pointer
+                            cursor: 'pointer',
+                            zIndex: 10002 // Above everything
                         }}
                         onClick={() => handlePointClick(idx)}
                         disabled={done}
                     >
-                        {/* Center Dot for precision */}
                         <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-black rounded-full -translate-x-1/2 -translate-y-1/2"></div>
                     </button>
                 );
@@ -138,10 +168,10 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
 
             {/* Validation / Finish Controls */}
             {!isCalibrating && (
-                <div className="absolute bottom-10 flex gap-4">
+                <div className="absolute bottom-10 flex gap-4 z-[10002]">
                     <button
                         onClick={() => setIsCalibrating(true)}
-                        className="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800"
+                        className="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 bg-slate-900"
                     >
                         Recalibrate
                     </button>
@@ -154,9 +184,9 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
                 </div>
             )}
 
-            {/* Auto-advance to validation if all done */}
+            {/* Auto-advance */}
             {isCalibrating && allCalibrated && (
-                <div className="absolute bottom-10">
+                <div className="absolute bottom-10 z-[10002]">
                     <button
                         onClick={attemptValidation}
                         className="px-8 py-3 rounded-full bg-blue-600 text-white font-bold animate-bounce shadow-xl shadow-blue-500/30"
@@ -168,10 +198,13 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
 
             <button
                 onClick={() => {
-                    if (window.webgazer) window.webgazer.end();
+                    // if(window.webgazer) window.webgazer.end(); // Don't end, just hide
+                    if (window.webgazer) {
+                        window.webgazer.showVideoPreview(false).showPredictionPoints(false);
+                    }
                     onCancel();
                 }}
-                className="absolute top-6 right-6 text-slate-500 hover:text-white"
+                className="absolute top-6 right-6 text-slate-500 hover:text-white z-[10003] bg-black/20 p-2 rounded-full"
             >
                 ✕ Cancel
             </button>
