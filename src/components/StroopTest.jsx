@@ -50,22 +50,7 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         setStage(stageName);
         setCorrectCount(0);
         setTotalTrials(0);
-        // Reset specific stage results on start? Or keep cumulative? 
-        // Usually reset for a fresh attempt at that stage.
         setResults(prev => ({ ...prev, [stageName === STAGES.OFF_STAGE ? 'off' : 'on']: { time: 0, trials: 0 } }));
-
-        // Start the timer for the WHOLE stage or per trial?
-        // Requirement: "Time required to complete 5 correct runs". 
-        // This implies a continuous timer from start of 1st trial to end of 5th correct trial.
-        // OR sum of reaction times. "Psychomotor speed" usually implies Reaction Time sum.
-        // However, "Time required to complete..." naturally reads as 'elapsed time'.
-        // Given standard computerized Stroop, it's often Sum of RTs. 
-        // Let's stick to Sum of RTs for precision, as "elapsed time" would include reading instructions or delays.
-        // Actually, looking at the screenshot "69.536s", that's quite long for 5 runs if it's just RT (14s per trial?).
-        // That suggests it might be total elapsed time including mistakes.
-        // Let's track Cumulative Reaction Time of ALL trials (correct and incorrect) to measure "Time required to complete".
-
-        // We initiate the first trial immediately.
         nextTrial(stageName, 0, 0);
     };
 
@@ -84,14 +69,11 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         let type = 'neutral';
 
         if (currentStage === STAGES.ON_STAGE) {
-            // ON Stage: Discordant pairs (e.g., word "Red" in Blue ink)
-            // To ensure discordance, we pick a word that is NOT the ink color.
             const wordColor = getRandomColor(inkColor.id);
             text = wordColor.name;
             type = 'incongruent';
         }
 
-        // Options are always the 3 color names, order randomized
         const currentOptions = shuffle([...colors]);
 
         setCurrentStimulus({
@@ -107,11 +89,8 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         const endTime = performance.now();
         const reactionTime = endTime - startTime;
         const isCorrect = selectedColor.id === currentStimulus.ink.id;
-
         const currentStageKey = stage === STAGES.OFF_STAGE ? 'off' : 'on';
 
-        // Update Results
-        // We add the time of THIS trial to the total time for this stage.
         setResults(prev => {
             const stageResults = prev[currentStageKey];
             return {
@@ -128,9 +107,6 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
 
         setCorrectCount(newCorrectCount);
         setTotalTrials(newTotalTrials);
-
-        // Immediate feedback could be useful but usually skipped for flow.
-        // We just proceed.
         nextTrial(stage, newCorrectCount, newTotalTrials);
     };
 
@@ -138,16 +114,16 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         return (
             <div className="glass-panel p-8 max-w-md w-full animate-fadeIn text-center mx-auto">
                 <h2 className="title text-2xl mb-4">{t.stroop_intro_title}</h2>
-                <div className="space-y-6 text-left text-slate-300">
+                <div className="space-y-6 text-left text-secondary">
                     <p>{t.stroop_desc}</p>
 
-                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 backdrop-blur-sm">
                         <h3 className="font-bold text-white mb-2">{t.part1_title}</h3>
                         <p className="text-sm">{t.part1_instr1} <span className="font-bold text-red-500">####</span>.</p>
                         <p className="text-sm">{t.part1_instr2} <span className="text-white font-bold">{t.ink_color}</span> {t.part1_instr2_suffix}</p>
                     </div>
 
-                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 backdrop-blur-sm">
                         <h3 className="font-bold text-white mb-2">{t.part2_title}</h3>
                         <p className="text-sm">{t.part2_instr1} <span className="font-bold text-blue-500">{t.red}</span>.</p>
                         <p className="text-sm">{t.part2_instr2}</p>
@@ -162,7 +138,7 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         return (
             <div className="glass-panel p-8 max-w-md w-full animate-fadeIn text-center mx-auto">
                 <h2 className="text-2xl font-bold mb-4 text-white">{t.part1_header} Complete</h2>
-                <p className="text-slate-300 mb-6">Get ready for Part 2.</p>
+                <p className="text-secondary mb-6">Get ready for Part 2.</p>
                 <button className="btn-primary w-full" onClick={() => startStage(STAGES.ON_STAGE)}>{t.start} Part 2</button>
             </div>
         );
@@ -173,8 +149,6 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         const onTime = results.on.time;
         const offTrials = results.off.trials;
         const onTrials = results.on.trials;
-
-        // Formatting to 3 decimals as shown in screenshot (e.g. 69.536s)
         const fmt = (ms) => (ms / 1000).toFixed(3) + 's';
 
         const metrics = [
@@ -188,21 +162,20 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
 
         return (
             <div className="w-full max-w-md mx-auto animate-fadeIn text-center">
-                {/* Header similar to screenshot */}
                 <div className="flex justify-between items-center mb-6 px-2">
-                    <button onClick={onExit} className="text-slate-400">&lt;</button>
+                    <button onClick={onExit} className="text-secondary hover:text-white transition-colors">&lt; {t.back}</button>
                     <div className="text-white font-bold text-lg">{t.results_title}</div>
-                    <button onClick={onExit} className="text-blue-400 font-semibold">{t.submit}</button>
+                    <button onClick={onExit} className="text-blue-400 font-semibold hover:text-blue-300 transition-colors">{t.submit}</button>
                 </div>
 
-                <div className="text-slate-400 text-xs text-right px-4 mb-2">
+                <div className="text-secondary text-xs text-right px-4 mb-2">
                     {new Date().toLocaleString()}
                 </div>
 
                 <div className="space-y-3 px-2">
                     {metrics.map((m, i) => (
-                        <div key={i} className="bg-slate-900/80 p-4 rounded-lg flex justify-between items-center border-l-4 border-slate-700">
-                            <span className="text-slate-300 text-sm font-medium">{m.label}</span>
+                        <div key={i} className="bg-slate-900/80 p-4 rounded-lg flex justify-between items-center border-l-4 border-slate-700 hover:bg-slate-800 transition-colors">
+                            <span className="text-secondary text-sm font-medium">{m.label}</span>
                             <span className="text-white font-mono">{m.value}</span>
                         </div>
                     ))}
@@ -211,60 +184,52 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         );
     }
 
-    // Active Test View
     return (
-        <div className="flex flex-col h-full w-full max-w-md mx-auto relative animate-fadeIn bg-slate-900 justify-between">
-            {/* Top Bar / Progress */}
+        <div className="flex flex-col h-full w-full max-w-md mx-auto relative animate-fadeIn justify-between">
             <div className="absolute top-4 w-full flex justify-between px-6 text-slate-500 text-sm font-semibold tracking-widest uppercase">
                 <span>{stage === STAGES.OFF_STAGE ? t.part1_header : t.part2_header}</span>
                 <span>{correctCount} / {REQUIRED_CORRECT_RUNS}</span>
             </div>
 
-            {/* Main Stimulus Area */}
             <div className="flex-1 flex flex-col items-center justify-center">
                 <div
-                    className="text-8xl font-bold transition-all duration-100 transform"
+                    className="text-8xl font-bold transition-all duration-100 transform font-mono"
                     style={{
                         color: currentStimulus?.ink.value,
-                        textShadow: '0 0 30px rgba(0,0,0,0.3)',
-                        fontFamily: 'monospace',
-                        letterSpacing: '-5px'
+                        textShadow: '0 0 40px rgba(0,0,0,0.5)',
+                        letterSpacing: '-2px'
                     }}
                 >
                     {currentStimulus?.text}
                 </div>
             </div>
 
-            {/* Control Area */}
             <div className="w-full pb-12 px-4">
-
-                {/* Answer Buttons */}
-                <div className="flex w-full gap-2 mb-8 h-16">
+                <div className="flex w-full gap-3 mb-8 h-20">
                     {options.map((opt, idx) => (
                         <button
                             key={idx}
                             onClick={() => handleOptionClick(opt)}
-                            className="flex-1 bg-gradient-to-b from-slate-700 to-slate-800 border-t border-slate-600 rounded-md text-white font-semibold text-lg active:scale-95 active:bg-slate-700 transition-all shadow-lg"
+                            className="flex-1 btn-primary text-xl active:scale-95 transition-all shadow-lg border-t-0"
+                            style={{ background: 'linear-gradient(to bottom, #1e293b, #0f172a)' }}
                         >
                             {opt.name}
                         </button>
                     ))}
                 </div>
 
-                {/* Feedback Display */}
-                <div className="flex items-center justify-center h-12 text-slate-400 gap-4 border-t border-slate-800 pt-4">
+                <div className="flex items-center justify-center h-12 text-secondary gap-4 border-t border-slate-700 pt-4">
                     <div className="flex items-center gap-2 text-2xl font-mono text-slate-300">
                         {results[stage === STAGES.OFF_STAGE ? 'off' : 'on'].trials > 0 ? (
                             <>
-                                <span className="text-sm text-slate-600 uppercase tracking-widest mr-2">{t.last_trial}</span>
-                                {(results[stage === STAGES.OFF_STAGE ? 'off' : 'on'].time / 1000).toFixed(3)}s (Total)
+                                <span className="text-sm text-slate-500 uppercase tracking-widest mr-2">{t.last_trial}</span>
+                                {(results[stage === STAGES.OFF_STAGE ? 'off' : 'on'].time / 1000).toFixed(3)}s
                             </>
                         ) : (
-                            <span className="text-sm text-slate-700 uppercase tracking-widest">{t.ready}</span>
+                            <span className="text-sm text-slate-500 uppercase tracking-widest">{t.ready}</span>
                         )}
                     </div>
                 </div>
-
             </div>
         </div>
     );
