@@ -44,7 +44,7 @@ function App() {
 
       {/* Main Menu */}
       {view === 'menu' && (
-        <div className="glass-panel p-8 max-w-lg w-full animate-fadeIn relative z-10 shadow-2xl border border-white/5">
+        <div className="glass-panel p-6 md:p-8 max-w-lg w-full animate-fadeIn relative z-10 shadow-2xl border border-white/5 overflow-hidden">
           <div className="absolute top-4 right-4 flex gap-1 bg-slate-800/50 p-1 rounded-lg border border-white/5">
             {['en', 'hi', 'mr'].map((l) => (
               <button
@@ -64,7 +64,7 @@ function App() {
             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg shadow-blue-500/20">
               🧠
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-indigo-100 to-slate-400 bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-indigo-100 to-slate-400 bg-clip-text text-transparent mb-2">
               {t.title}
             </h1>
             <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">

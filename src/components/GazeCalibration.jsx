@@ -1,212 +1,292 @@
 
-import React, { useState, useEffect } from 'react';
-
-const CALIBRATION_POINTS = [
-    { x: 10, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 },
-    { x: 10, y: 50 }, { x: 50, y: 50 }, { x: 90, y: 50 },
-    { x: 10, y: 90 }, { x: 50, y: 90 }, { x: 90, y: 90 }
-];
+import React, { useState, useEffect, useRef } from 'react';
+import { IrisTracker } from '../utils/IrisTracker';
 
 const GazeCalibration = ({ onComplete, onCancel }) => {
-    const [counts, setCounts] = useState(Array(9).fill(0));
-    const [isCalibrating, setIsCalibrating] = useState(true);
-    const [webgazerReady, setWebgazerReady] = useState(false);
+    // Phase: 'intro' -> 'camera_init' -> 'capture_template' -> 'verifying' -> 'complete'
+    const [phase, setPhase] = useState('intro');
     const [cameraError, setCameraError] = useState(null);
+    const [debugMsg, setDebugMsg] = useState('Align eyes in the box. Keep head still.');
+    const [cvReady, setCvReady] = useState(false);
 
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const trackerRef = useRef(new IrisTracker());
+    const streamRef = useRef(null);
+
+    // Initial Setup & OpenCV Check
     useEffect(() => {
-        let loadInterval;
-
-        const setupWebgazer = async () => {
-            if (window.webgazer) {
-                try {
-                    // Cleanup any existing instance
-                    try { await window.webgazer.end(); } catch (e) { }
-
-                    await window.webgazer.setRegression('ridge')
-                        .setTracker('Tffacmesh')
-                        .begin();
-
-                    window.webgazer.showVideoPreview(true)
-                        .showPredictionPoints(true)
-                        .applyKalmanFilter(true);
-
-                    // Force style the video element created by WebGazer
-                    const styleVideo = () => {
-                        const videoElement = document.getElementById('webgazerVideoFeed');
-                        if (videoElement) {
-                            videoElement.style.position = 'absolute';
-                            videoElement.style.top = '20px';
-                            videoElement.style.left = '50%';
-                            videoElement.style.transform = 'translateX(-50%)';
-                            videoElement.style.width = '320px';
-                            videoElement.style.height = '240px';
-                            videoElement.style.zIndex = '9999'; // Very high z-index
-                            videoElement.style.borderRadius = '12px';
-                            videoElement.style.border = '2px solid #6366f1';
-                            videoElement.style.display = 'block';
-                        }
-                    };
-
-                    styleVideo();
-                    // Retry setting style in case it gets overwritten or loaded late
-                    setTimeout(styleVideo, 1000);
-                    setTimeout(styleVideo, 3000);
-
-                    setWebgazerReady(true);
-                } catch (err) {
-                    console.error("WebGazer Init Error:", err);
-                    setCameraError("Camera access denied or not found. Please check browser permissions.");
-                }
+        const checkCv = setInterval(() => {
+            if (window.cv && window.cv.Mat) {
+                setCvReady(true);
+                clearInterval(checkCv);
             }
-        };
-
-        // Robust loading check
-        if (window.webgazer) {
-            setupWebgazer();
-        } else {
-            // Poll for script load
-            loadInterval = setInterval(() => {
-                if (window.webgazer) {
-                    clearInterval(loadInterval);
-                    setupWebgazer();
-                }
-            }, 500);
-        }
+        }, 500);
 
         return () => {
-            if (loadInterval) clearInterval(loadInterval);
-            if (window.webgazer) {
-                window.webgazer.showVideoPreview(false).showPredictionPoints(false);
-                // We keep it running in background for tests, just hide UI
+            clearInterval(checkCv);
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
             }
         };
     }, []);
 
-    const handlePointClick = (index) => {
-        if (!webgazerReady) return;
+    const startCamera = async () => {
+        if (!cvReady) {
+            setCameraError("AI Engine (OpenCV) is still loading. Please wait a moment.");
+            setPhase('error');
+            return;
+        }
 
-        const newCounts = [...counts];
-        newCounts[index] += 1;
-        setCounts(newCounts);
+        setPhase('camera_init');
+
+        // Safety timeout
+        const timeoutId = setTimeout(() => {
+            if (videoRef.current && !videoRef.current.srcObject) {
+                setCameraError("Camera initialization timed out. Please refresh or check browser permissions.");
+                setPhase('error');
+            }
+        }, 10000);
+
+        try {
+            // Simplified constraints for better compatibility on mobile/safari
+            // We ask for HD, but allow fallback
+            const constraints = {
+                video: {
+                    facingMode: "user",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+            clearTimeout(timeoutId);
+            streamRef.current = stream;
+
+            // Wait for video element
+            setTimeout(() => {
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.onloadedmetadata = () => {
+                        videoRef.current.play().catch(e => console.error("Play error:", e));
+                        setPhase('capture_template');
+                    };
+                }
+            }, 500);
+
+        } catch (err) {
+            clearTimeout(timeoutId);
+            console.error("Camera Error:", err);
+            setCameraError("Could not access camera. Please allow permissions and ensure no other app is using it.");
+            setPhase('error');
+        }
     };
 
-    const attemptValidation = () => {
-        setIsCalibrating(false);
-        window.webgazer.showPredictionPoints(true);
+    const captureTemplate = () => {
+        if (!videoRef.current || !window.cv) {
+            setDebugMsg("OpenCV not ready or Camera not active.");
+            return;
+        }
+
+        setDebugMsg("Scanning... Open eyes wide!");
+
+        // Slight delay to ensure UI updates
+        setTimeout(() => {
+            const success = trackerRef.current.initialize(videoRef.current);
+
+            if (success) {
+                setPhase('verifying');
+                setDebugMsg("Iris Template Captured! Verifying tracking...");
+
+                // Verify by tracking for a few frames
+                verifyTracking();
+            } else {
+                setDebugMsg("Could not detect Iris. Please ensure good lighting and open eyes wider.");
+            }
+        }, 100);
     };
 
-    const finish = () => {
-        window.webgazer.showVideoPreview(false).showPredictionPoints(false);
-        if (onComplete) onComplete();
+    const verifyTracking = () => {
+        let goodFrames = 0;
+        const maxFrames = 30; // 1 sec at 30fps
+        let frameCount = 0;
+
+        const interval = setInterval(() => {
+            frameCount++;
+            if (!videoRef.current) {
+                clearInterval(interval);
+                return;
+            }
+            const pos = trackerRef.current.track(videoRef.current);
+
+            if (pos && pos.x > 0 && pos.y > 0) {
+                goodFrames++;
+            }
+
+            if (frameCount >= maxFrames) {
+                clearInterval(interval);
+                if (goodFrames > 15) { // >50% confidence
+                    setPhase('complete');
+                    setDebugMsg("Tracking Verified. System Ready.");
+                } else {
+                    setDebugMsg("Tracking unstable. Retrying capture...");
+                    setPhase('capture_template');
+                }
+            }
+        }, 33);
     };
 
-    const allCalibrated = counts.every(c => c >= 5);
+    // --- RENDERERS ---
+
+    if (phase === 'intro') {
+        return (
+            <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
+                <div className="max-w-md w-full glass-panel p-8 border border-white/10 rounded-2xl shadow-blue-500/20">
+                    <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
+                        👁
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">Iris Tracker Setup</h2>
+                    <p className="text-slate-400 mb-8 leading-relaxed text-sm">
+                        We use a clinical-grade "Hybrid CHT" algorithm to track eye movements.
+                        <br /><br />
+                        1. <strong>Hold phone steady</strong> at arm's length.
+                        <br />
+                        2. Ensure <strong>good lighting</strong> on your face.
+                        <br />
+                        3. When prompted, <strong>open eyes WIDE</strong>.
+                    </p>
+
+                    {!cvReady && (
+                        <div className="mb-4 text-xs text-indigo-400 bg-indigo-500/10 p-2 rounded animate-pulse">
+                            Loading AI Engine...
+                        </div>
+                    )}
+
+                    <div className="flex gap-4">
+                        <button
+                            onClick={onCancel}
+                            className="flex-1 px-4 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={startCamera}
+                            disabled={!cvReady}
+                            className={`flex-1 btn-primary text-lg shadow-lg shadow-indigo-500/20 ${!cvReady ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            Start Camera
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (phase === 'error') {
+        return (
+            <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center animate-fadeIn text-center p-8">
+                <div className="text-red-500 text-4xl mb-4">⚠️</div>
+                <h3 className="text-xl text-white font-bold mb-2">Camera Access Failed</h3>
+                <p className="text-slate-400 mb-6">{cameraError}</p>
+                <button
+                    onClick={onCancel}
+                    className="px-6 py-2 bg-slate-800 rounded-lg text-slate-300"
+                >
+                    Close
+                </button>
+            </div>
+        );
+    }
+
+    if (phase === 'camera_init') {
+        return (
+            <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center animate-fadeIn">
+                <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-8"></div>
+                <h3 className="text-xl text-white font-bold">Initializing High-Res Camera...</h3>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center">
-            {/* Header/Instructions */}
-            <div className="absolute top-0 pt-24 text-center pointer-events-none w-full px-4 z-[10001]">
-                {/* High Z-index to sit above video */}
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                    Eye Calibration
-                </h2>
-                <div className="bg-black/40 backdrop-blur-sm inline-block px-4 py-2 rounded-lg mt-2">
-                    <p className="text-slate-300 text-sm font-medium">
-                        {isCalibrating
-                            ? "Look at each dot and click it 5 times. Keep head still."
-                            : "Follow cursor with eyes. Click Finish if accurate."}
-                    </p>
+            {/* Camera Feed */}
+            <div className="relative w-full h-full md:w-auto md:h-auto md:max-w-4xl md:aspect-video bg-black md:rounded-2xl overflow-hidden shadow-2xl border-0 md:border border-slate-800 flex items-center justify-center opacity-100 visible">
+                <video
+                    ref={videoRef}
+                    className="w-full h-full object-cover transform scale-x-[-1] opacity-60 md:opacity-100" // Dimmed slightly on mobile for UI legibility
+                    playsInline
+                    muted
+                />
+
+                {/* Overlay Guide */}
+                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center overflow-hidden">
+                    {/* Face Box */}
+                    <div className={`w-56 h-72 md:w-80 md:h-96 border-4 rounded-[4rem] transition-all duration-500 box-border ${phase === 'verifying'
+                        ? 'border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.5)] scale-105'
+                        : 'border-white/40 border-dashed animate-pulse'
+                        }`}></div>
+
+                    {/* Instructions Floating Near Face */}
+                    <div className="absolute top-[20%] md:top-[25%] bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 text-white font-bold text-xs md:text-sm shadow-xl z-20">
+                        {phase === 'capture_template' ? 'Step 2: Align Face & Open Eyes' : 'Step 1: Initialization'}
+                    </div>
+
+                    {/* Eye Level Guide */}
+                    <div className="absolute top-[35%] w-full h-px bg-blue-500/40"></div>
                 </div>
 
-                {/* Status Messages */}
-                {!webgazerReady && !cameraError && (
-                    <div className="mt-4 flex flex-col items-center gap-2">
-                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-blue-400 text-xs">Initializing...</p>
-                    </div>
-                )}
+                {/* Status Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 pt-12 bg-gradient-to-t from-black via-black/90 to-transparent z-10 flex flex-col items-center pb-8 md:pb-10">
+                    <div className="max-w-md w-full text-center">
+                        <p className={`font-mono text-sm mb-6 font-bold tracking-wide uppercase ${phase === 'verifying' ? 'text-emerald-400' : 'text-blue-300'}`}>
+                            {debugMsg}
+                        </p>
 
-                {cameraError && (
-                    <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg pointer-events-auto">
-                        <p className="text-red-400 font-bold">{cameraError}</p>
-                        <button onClick={() => window.location.reload()} className="mt-2 text-xs bg-red-500/20 px-3 py-1 rounded hover:bg-red-500/40 text-red-200">
-                            Reload Page
-                        </button>
+                        {phase === 'capture_template' && (
+                            <button
+                                onClick={captureTemplate}
+                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-lg shadow-[0_0_30px_rgba(99,102,241,0.4)] animate-pulse transition-all active:scale-95 border border-indigo-400/50"
+                            >
+                                Tap to Capture Iris
+                            </button>
+                        )}
+
+                        {phase === 'verifying' && (
+                            <div className="flex items-center justify-center gap-3 text-emerald-400 font-bold bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 w-full">
+                                <span className="relative flex h-3 w-3">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                </span>
+                                Verifying Stability...
+                            </div>
+                        )}
+
+                        {phase === 'complete' && (
+                            <button
+                                onClick={() => {
+                                    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+                                    if (onComplete) onComplete(trackerRef.current);
+                                }}
+                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-lg shadow-lg shadow-emerald-500/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <span>Proceed to Tests</span>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                            </button>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
 
-            {/* Calibration Points */}
-            {isCalibrating && CALIBRATION_POINTS.map((pt, idx) => {
-                const count = counts[idx];
-                const done = count >= 5;
-                const opacity = done ? 0.3 : 1;
-                const scale = 1 + (count * 0.1);
-                const color = done ? '#10b981' : '#f43f5e';
-
-                return (
-                    <button
-                        key={idx}
-                        className="absolute w-8 h-8 rounded-full border-4 transition-all duration-200"
-                        style={{
-                            left: `${pt.x}%`,
-                            top: `${pt.y}%`,
-                            transform: `translate(-50%, -50%) scale(${scale})`,
-                            backgroundColor: color,
-                            borderColor: 'white',
-                            opacity: opacity,
-                            cursor: 'pointer',
-                            zIndex: 10002 // Above everything
-                        }}
-                        onClick={() => handlePointClick(idx)}
-                        disabled={done}
-                    >
-                        <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-black rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-                    </button>
-                );
-            })}
-
-            {/* Validation / Finish Controls */}
-            {!isCalibrating && (
-                <div className="absolute bottom-10 flex gap-4 z-[10002]">
-                    <button
-                        onClick={() => setIsCalibrating(true)}
-                        className="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 bg-slate-900"
-                    >
-                        Recalibrate
-                    </button>
-                    <button
-                        onClick={finish}
-                        className="px-6 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 font-bold shadow-lg shadow-emerald-500/20"
-                    >
-                        Finish & Start Tests
-                    </button>
-                </div>
-            )}
-
-            {/* Auto-advance */}
-            {isCalibrating && allCalibrated && (
-                <div className="absolute bottom-10 z-[10002]">
-                    <button
-                        onClick={attemptValidation}
-                        className="px-8 py-3 rounded-full bg-blue-600 text-white font-bold animate-bounce shadow-xl shadow-blue-500/30"
-                    >
-                        Check Accuracy
-                    </button>
-                </div>
-            )}
-
+            {/* Close Button */}
             <button
                 onClick={() => {
-                    // if(window.webgazer) window.webgazer.end(); // Don't end, just hide
-                    if (window.webgazer) {
-                        window.webgazer.showVideoPreview(false).showPredictionPoints(false);
-                    }
+                    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
                     onCancel();
                 }}
-                className="absolute top-6 right-6 text-slate-500 hover:text-white z-[10003] bg-black/20 p-2 rounded-full"
+                className="absolute top-6 right-6 text-white/50 hover:text-white z-[201] bg-black/40 p-3 rounded-full backdrop-blur-md active:bg-white/10"
             >
-                ✕ Cancel
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
         </div>
     );

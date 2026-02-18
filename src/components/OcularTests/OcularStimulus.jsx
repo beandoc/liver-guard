@@ -2,10 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TEST_CONFIG } from './constants';
 
-const OcularStimulus = ({ testId, isDemo = false, onComplete }) => {
+const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete }) => {
     const requestRef = useRef();
     const startTimeRef = useRef(null);
     const gazeDataRef = useRef([]);
+    const videoRef = useRef(null);
+    const streamRef = useRef(null);
 
     // Ref to track current simulation state (synced with visual state for recording)
     const targetStateRef = useRef({ x: 50, y: 50, visible: true, ghost: false, color: null });
@@ -19,12 +21,24 @@ const OcularStimulus = ({ testId, isDemo = false, onComplete }) => {
     const [demoInstruction, setDemoInstruction] = useState('');
 
     useEffect(() => {
-        // Toggle video preview
-        if (window.webgazer) {
-            const shouldShow = false; // Always hide during test
-            window.webgazer.showVideoPreview(shouldShow).showPredictionPoints(shouldShow);
-            if (!isDemo) window.webgazer.resume();
-        }
+        // --- High Performance Camera Setup for Hybrid Tracker ---
+        const setupCamera = async () => {
+            if (isDemo || !tracker) return;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user", width: 640, height: 480 } // Lower res for Phase B speed
+                });
+                streamRef.current = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    await videoRef.current.play();
+                }
+            } catch (e) {
+                console.error("Test Camera Error:", e);
+            }
+        };
+
+        setupCamera();
 
         if (!config || !startTimeRef.current) {
             startTimeRef.current = Date.now();
@@ -41,9 +55,8 @@ const OcularStimulus = ({ testId, isDemo = false, onComplete }) => {
             const elapsed = now - startTime;
 
             if (!isDemo && elapsed > config.duration) {
-                if (window.webgazer) {
-                    window.webgazer.pause();
-                    console.log(`Test ${testId} Data Points:`, gazeDataRef.current.length);
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(t => t.stop());
                 }
                 if (onComplete) onComplete(gazeDataRef.current);
                 return;
@@ -63,14 +76,12 @@ const OcularStimulus = ({ testId, isDemo = false, onComplete }) => {
                 }
             }
             else if (config.type === 'antisaccade') {
-                // Cue appears
                 if (now - lastEventTime > config.jumpInterval) {
                     const side = Math.random() > 0.5 ? 20 : 80;
                     newState = { x: side, y: 50, visible: true, color: '#f87171' }; // Red Cue
                     lastEventTime = now;
                     if (isDemo) instruction = side < 50 ? 'Look RIGHT ->' : '<- Look LEFT';
                 }
-                // Cue disappears after 1s
                 else if (now - lastEventTime > 1000 && newState.visible) {
                     newState.visible = false;
                 }
@@ -80,20 +91,16 @@ const OcularStimulus = ({ testId, isDemo = false, onComplete }) => {
                 const cycleOffset = elapsed % cycleTime;
                 const cycleIndex = Math.floor(elapsed / cycleTime);
 
-                // Determine memory location for this cycle
                 const isLeft = (cycleIndex % 2 === 0);
                 memoryX = isLeft ? 20 : 80;
 
                 if (cycleOffset < config.phases.peripheral) {
-                    // Phase 1: Peripheral
                     newState = { x: memoryX, y: 50, visible: true, color: '#10b981' };
                     if (isDemo) instruction = 'Look at Green Dot';
                 } else if (cycleOffset < (config.phases.peripheral + config.phases.center)) {
-                    // Phase 2: Center
                     newState = { x: 50, y: 50, visible: true, color: '#10b981' };
                     if (isDemo) instruction = 'Follow to Center';
                 } else {
-                    // Phase 3: Response
                     if (isDemo) {
                         newState = { x: memoryX, y: 50, visible: true, ghost: true, color: 'white' };
                         instruction = 'Look back where it started!';
@@ -104,35 +111,28 @@ const OcularStimulus = ({ testId, isDemo = false, onComplete }) => {
             }
             else if (config.type === 'smooth_linear') {
                 const t = (elapsed % config.lapTime) / config.lapTime;
-                let x = 0;
-                if (t < 0.5) {
-                    x = 10 + (t * 2) * 80;
-                } else {
-                    x = 90 - ((t - 0.5) * 2) * 80;
-                }
-                newState = { x, y: 50, visible: true, color: '#6366f1' }; // Accented smooth dot
+                let x = t < 0.5 ? 10 + (t * 2) * 80 : 90 - ((t - 0.5) * 2) * 80;
+                newState = { x, y: 50, visible: true, color: '#6366f1' };
                 if (isDemo) instruction = 'Track smoothly.';
             }
 
-            // --- 2. Update States ---
-            // Only trigger React render if visual state changed meaningfully or for smooth pursuit (every frame)
-            // For jump tests, optimization: check if x/y changed.
+            // --- 2. Update Visuals ---
             if (newState.x !== targetStateRef.current.x || newState.y !== targetStateRef.current.y || newState.visible !== targetStateRef.current.visible) {
                 setTargetPos(newState);
                 if (instruction) setDemoInstruction(instruction);
                 targetStateRef.current = newState;
             }
 
-            // --- 3. Record Data ---
-            if (!isDemo && window.webgazer) {
-                const prediction = window.webgazer.getCurrentPrediction();
-                if (prediction) {
+            // --- 3. Hybrid Tracking Phase B ---
+            if (!isDemo && tracker && videoRef.current && videoRef.current.readyState === 4) {
+                const pos = tracker.track(videoRef.current);
+                if (pos) {
                     gazeDataRef.current.push({
                         time: now,
-                        gazeX: prediction.x,
-                        gazeY: prediction.y,
-                        targetX: targetStateRef.current.x, // still in % 
-                        targetY: targetStateRef.current.y, // still in %
+                        eyeX: pos.x, // Direct iris position
+                        eyeY: pos.y,
+                        targetX: targetStateRef.current.x,
+                        targetY: targetStateRef.current.y,
                         targetVisible: targetStateRef.current.visible
                     });
                 }
@@ -145,12 +145,11 @@ const OcularStimulus = ({ testId, isDemo = false, onComplete }) => {
 
         return () => {
             cancelAnimationFrame(requestRef.current);
-            if (window.webgazer) {
-                // Restore if needed, but usually we just leave it paused/hidden until next test
-                // window.webgazer.pause(); 
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(t => t.stop());
             }
         };
-    }, [config, isDemo, onComplete, testId]);
+    }, [config, isDemo, onComplete, testId, tracker]);
 
     // Render logic
     return (
@@ -196,6 +195,14 @@ const OcularStimulus = ({ testId, isDemo = false, onComplete }) => {
                     <span className="text-red-500 text-xs font-mono">REC</span>
                 </div>
             )}
+
+            {/* Hidden Video for Tracking */}
+            <video
+                ref={videoRef}
+                className="hidden"
+                playsInline
+                muted
+            />
         </div>
     );
 };
