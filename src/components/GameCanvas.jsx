@@ -77,8 +77,20 @@ const GameCanvas = ({ onComplete, totalPoints = 10 }) => {
   };
 
   return (
-    <div className="canvas-container w-full h-full relative overflow-hidden bg-slate-900" ref={canvasRef}>
-      <svg className="absolute inset-0 pointer-events-none w-full h-full">
+    <div className="canvas-container w-full h-full relative overflow-hidden bg-slate-950" ref={canvasRef}>
+      {/* Target Progress Indicator */}
+      <div className="absolute top-8 left-0 w-full text-center pointer-events-none z-0">
+        <div className="text-[15rem] leading-none font-black text-white/[0.03] animate-pulse select-none">
+          {nextPoint}
+        </div>
+      </div>
+
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-slate-800/80 border border-indigo-500/30 backdrop-blur-md z-30 shadow-lg flex items-center gap-3">
+        <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold">Target</span>
+        <span className="text-xl font-black text-white">{nextPoint}</span>
+      </div>
+
+      <svg className="absolute inset-0 pointer-events-none w-full h-full z-10">
         {lines.map((line, i) => (
           <line
             key={i}
@@ -94,19 +106,48 @@ const GameCanvas = ({ onComplete, totalPoints = 10 }) => {
           />
         ))}
       </svg>
+
       {points.map(point => (
         <div
           key={point.id}
-          className={`point ${point.id < nextPoint ? 'completed' : ''} ${point.id === nextPoint ? 'active' : ''}`}
-          style={{ left: point.x, top: point.y }}
-          onMouseDown={() => handleInteraction(point)}
-          onTouchStart={(e) => { e.preventDefault(); handleInteraction(point); }}
+          className={`point ${point.id < nextPoint ? 'completed' : ''} ${point.id === nextPoint ? 'active' : ''} z-20`}
+          style={{
+            left: point.x,
+            top: point.y,
+            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          }}
+          onMouseDown={(e) => {
+            if (point.id === nextPoint) createRipple(e);
+            handleInteraction(point);
+          }}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            if (point.id === nextPoint) createRipple(e.touches[0]);
+            handleInteraction(point);
+          }}
         >
           {point.id}
         </div>
       ))}
     </div>
   );
+
+  function createRipple(e) {
+    if (!canvasRef.current) return;
+    const ripple = document.createElement('div');
+    ripple.className = 'tap-ripple';
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    ripple.style.left = `${x - 25}px`;
+    ripple.style.top = `${y - 25}px`;
+    ripple.style.width = '50px';
+    ripple.style.height = '50px';
+
+    canvasRef.current.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 400);
+  }
 };
 
 export default GameCanvas;

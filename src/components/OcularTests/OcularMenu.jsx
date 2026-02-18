@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { OCULAR_TESTS, OCULAR_TRANSLATIONS } from './constants';
 import OcularStimulus from './OcularStimulus';
 import GazeCalibration from '../GazeCalibration';
