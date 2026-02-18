@@ -1,204 +1,194 @@
+import { KalmanFilter2D } from './KalmanFilter';
 
 /**
  * IrisTracker.js
  * 
- * Implements the Hybrid CHT + Template Matching algorithm for efficient
- * eye tracking on mobile devices, as per the clinical methodology.
- * 
- * Dependencies: OpenCV.js (must be loaded in window.cv)
+ * Clinical Grade Eye Tracking using Google MediaPipe Face Mesh.
+ * Uses a warm-up frame to guarantee the WASM engine is fully compiled
+ * before the tracking loop begins.
  */
 
 export class IrisTracker {
     constructor() {
         this.isReady = false;
-        this.irisTemplate = null;
-        this.templateRect = null; // {x, y, width, height}
-        this.lastPosition = { x: 0, y: 0 };
-        this.processingScale = 0.5; // Process at half resolution for speed
+        this.faceMesh = null;
+        this.lastResults = null;
+
+        this.leftKalman = new KalmanFilter2D(0.015, 0.5);
+        this.rightKalman = new KalmanFilter2D(0.015, 0.5);
+
+        this.calibrationPoints = [];
+        this.isCalibrated = false;
     }
 
     /**
-     * Phase A: Initialization
-     * Detects the iris using Circular Hough Transform (CHT) with fallback
-     * @param {HTMLVideoElement} videoElement 
-     * @returns {Object|null} The detected iris ROI or null if failed
+     * Initializes the MediaPipe Face Mesh engine.
+     * Sends a warm-up frame and waits for the first onResults callback
+     * to confirm the WASM engine is truly ready.
+     * @returns {Promise<boolean>}
      */
-    initialize(videoElement) {
-        if (!window.cv || !videoElement.videoWidth) {
-            console.error("OpenCV not loaded or Video not ready");
+    async initialize() {
+        if (this.isReady) return true;
+
+        return new Promise((resolve) => {
+            try {
+                if (!window.FaceMesh) {
+                    console.error("[IrisTracker] window.FaceMesh not found. CDN script may not have loaded.");
+                    resolve(false);
+                    return;
+                }
+
+                console.log("[IrisTracker] Creating FaceMesh instance...");
+
+                this.faceMesh = new window.FaceMesh({
+                    locateFile: (file) => {
+                        // Use unpkg as a reliable CDN alternative
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`;
+                    }
+                });
+
+                this.faceMesh.setOptions({
+                    maxNumFaces: 1,
+                    refineLandmarks: true,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                // Set up a timeout — if WASM doesn't compile in 20s, fail gracefully
+                const timeout = setTimeout(() => {
+                    console.error("[IrisTracker] Initialization timed out after 20 seconds.");
+                    resolve(false);
+                }, 20000);
+
+                this.faceMesh.onResults((results) => {
+                    // This callback fires after the FIRST frame is processed,
+                    // which confirms the WASM engine is fully compiled and running.
+                    if (!this.isReady) {
+                        clearTimeout(timeout);
+                        this.isReady = true;
+                        console.log("[IrisTracker] WASM engine confirmed ready via warm-up frame.");
+                        resolve(true);
+                    }
+                    if (results.multiFaceLandmarks) {
+                        this.lastResults = results;
+                    }
+                });
+
+                // Send a 1x1 blank canvas as a warm-up frame.
+                // This forces the WASM to compile synchronously.
+                console.log("[IrisTracker] Sending warm-up frame to compile WASM...");
+                const warmupCanvas = document.createElement('canvas');
+                warmupCanvas.width = 1;
+                warmupCanvas.height = 1;
+                this.faceMesh.send({ image: warmupCanvas }).catch((err) => {
+                    console.warn("[IrisTracker] Warm-up send error (non-fatal):", err);
+                    // Don't reject — the onResults callback will still fire
+                });
+
+            } catch (err) {
+                console.error("[IrisTracker] Fatal init error:", err);
+                resolve(false);
+            }
+        });
+    }
+
+    /**
+     * Processes a single video frame and returns normalized iris centers.
+     * @param {HTMLVideoElement} videoElement 
+     * @returns {Object|null}
+     */
+    async track(videoElement) {
+        if (!this.faceMesh || !this.isReady) return null;
+        if (!videoElement || videoElement.readyState < 2) return null;
+
+        try {
+            await this.faceMesh.send({ image: videoElement });
+
+            if (
+                this.lastResults &&
+                this.lastResults.multiFaceLandmarks &&
+                this.lastResults.multiFaceLandmarks.length > 0
+            ) {
+                const landmarks = this.lastResults.multiFaceLandmarks[0];
+
+                const leftIris = landmarks[468];
+                const rightIris = landmarks[473];
+
+                if (!leftIris || !rightIris) return null;
+
+                // Blink detection
+                const leftOpenness = Math.abs(landmarks[159].y - landmarks[145].y);
+                const rightOpenness = Math.abs(landmarks[386].y - landmarks[374].y);
+                const isBlinking = leftOpenness < 0.012 && rightOpenness < 0.012;
+
+                // Face width as a Z-proxy for distance, and Center for drift detection
+                const faceZ = Math.abs(landmarks[454].x - landmarks[234].x);
+                const faceCenter = {
+                    x: (landmarks[454].x + landmarks[234].x) / 2,
+                    y: (landmarks[10].y + landmarks[152].y) / 2
+                };
+
+                this.leftKalman.predict();
+                this.rightKalman.predict();
+                this.leftKalman.update([leftIris.x * 100, leftIris.y * 100]);
+                this.rightKalman.update([rightIris.x * 100, rightIris.y * 100]);
+
+                const smoothLeft = this.leftKalman.getPoint();
+                const smoothRight = this.rightKalman.getPoint();
+
+                return {
+                    left: smoothLeft,
+                    right: smoothRight,
+                    avg: {
+                        x: (smoothLeft.x + smoothRight.x) / 2,
+                        y: (smoothLeft.y + smoothRight.y) / 2
+                    },
+                    faceZ,
+                    faceCenter,
+                    isBlinking,
+                    confidence: 1.0
+                };
+            }
+            return null;
+        } catch (err) {
+            // Silently skip bad frames
             return null;
         }
+    }
 
-        let src = null;
-        let gray = null;
-        let blurred = null;
-        let circles = null;
-        let claheMat = null;
-        let clahe = null;
-
-        try {
-            const cap = new window.cv.VideoCapture(videoElement);
-            const width = videoElement.videoWidth;
-            const height = videoElement.videoHeight;
-
-            src = new window.cv.Mat(height, width, window.cv.CV_8UC4);
-            cap.read(src);
-
-            gray = new window.cv.Mat();
-            window.cv.cvtColor(src, gray, window.cv.COLOR_RGBA2GRAY, 0);
-
-            // 1. Advanced Normalization (CLAHE) - Essential for pupils in low/uneven light
-            claheMat = new window.cv.Mat();
-            clahe = new window.cv.CLAHE(2.5, new window.cv.Size(8, 8));
-            clahe.apply(gray, claheMat);
-
-            // 2. Dynamic ROI: Scan the upper center where eyes are expected
-            const roiRect = new window.cv.Rect(
-                width * 0.1,
-                height * 0.1,
-                width * 0.8,
-                height * 0.5
-            );
-            const roi = claheMat.roi(roiRect);
-
-            // 3. Preprocessing
-            blurred = new window.cv.Mat();
-            window.cv.medianBlur(roi, blurred, 5);
-
-            // 4. Multi-Stage Detection
-            circles = new window.cv.Mat();
-
-            // INCREASED MAX RADIUS: Up to 150 pixels to handle "Close Up" shots or 1080p+
-            // Param2 lowered to 20 for extreme sensitivity to subtle eye circles
-            window.cv.HoughCircles(blurred, circles, window.cv.HOUGH_GRADIENT, 1, 60, 100, 20, 15, 150);
-
-            let bestCircle = null;
-
-            if (circles.cols > 0) {
-                // Heuristic: Find the most centered circle in the ROI
-                let minDist = Infinity;
-                for (let i = 0; i < circles.cols; ++i) {
-                    const cx = circles.data32F[i * 3];
-                    const cy = circles.data32F[i * 3 + 1];
-                    const r = circles.data32F[i * 3 + 2];
-
-                    const distFromCenter = Math.abs(cx - roiRect.width / 2);
-                    if (distFromCenter < minDist) {
-                        minDist = distFromCenter;
-                        bestCircle = { x: cx + roiRect.x, y: cy + roiRect.y, r };
-                    }
-                }
-            } else {
-                // 5. FALLBACK: Darkest Point Detection (if Hough fails)
-                // Iris/Pupil is usually the darkest part of the ROI in IR or visible light
-                let minMax = window.cv.minMaxLoc(blurred);
-                if (minMax.minVal < 100) { // Threshold for a dark blob
-                    bestCircle = {
-                        x: minMax.minLoc.x + roiRect.x,
-                        y: minMax.minLoc.y + roiRect.y,
-                        r: 45 // Generic iris radius for template creation
-                    };
-                    console.log("Hough failed, used Darkest Blob / Pupil Centroid fallback");
-                }
-            }
-
-            if (bestCircle) {
-                // 6. Final Template Lock
-                const templateSize = bestCircle.r * 2.2;
-                const tx = Math.max(0, bestCircle.x - templateSize / 2);
-                const ty = Math.max(0, bestCircle.y - templateSize / 2);
-
-                const templateRect = new window.cv.Rect(tx, ty, templateSize, templateSize);
-
-                if (tx + templateSize < gray.cols && ty + templateSize < gray.rows) {
-                    const finalRoi = gray.roi(templateRect);
-                    this.irisTemplate = finalRoi.clone();
-                    finalRoi.delete();
-
-                    this.templateRect = templateRect;
-                    this.lastPosition = { x: bestCircle.x, y: bestCircle.y };
-                    this.isReady = true;
-                    console.log("TRACKER_LOCK: Captured at R=", bestCircle.r);
-                }
-            }
-
-            roi.delete();
-            return this.isReady;
-
-        } catch (err) {
-            console.error("Critical Iris Detection Error:", err);
-            return false;
-        } finally {
-            if (src) src.delete();
-            if (gray) gray.delete();
-            if (claheMat) claheMat.delete();
-            if (clahe) clahe.delete();
-            if (blurred) blurred.delete();
-            if (circles) circles.delete();
+    addCalibrationPoint(screenPt, eyePt) {
+        this.calibrationPoints.push({ screen: screenPt, eye: eyePt });
+        if (this.calibrationPoints.length >= 5) {
+            this.isCalibrated = true;
         }
     }
 
-    /**
-     * Phase B: Real-Time Tracking
-     * Uses Template Matching with Sub-pixel refinement
-     * @param {HTMLVideoElement} videoElement 
-     * @returns {Object} {x, y} coordinate of iris center
-     */
-    track(videoElement) {
-        if (!this.isReady || !this.irisTemplate || !videoElement.videoWidth) return null;
+    getGaze(eyePt) {
+        if (!this.isCalibrated) return null;
 
-        let src = null;
-        let gray = null;
-        let result = null;
-        let mask = null;
-        let cap = null;
+        const center = this.calibrationPoints.find(p => p.screen.x === 50 && p.screen.y === 50);
+        const tl = this.calibrationPoints.find(p => p.screen.x === 20 && p.screen.y === 20);
+        const tr = this.calibrationPoints.find(p => p.screen.x === 80 && p.screen.y === 20);
+        const bl = this.calibrationPoints.find(p => p.screen.x === 20 && p.screen.y === 80);
 
-        try {
-            cap = new window.cv.VideoCapture(videoElement);
-            src = new window.cv.Mat(videoElement.videoHeight, videoElement.videoWidth, window.cv.CV_8UC4);
-            cap.read(src);
+        if (!center || !tl || !tr || !bl) return null;
 
-            gray = new window.cv.Mat();
-            window.cv.cvtColor(src, gray, window.cv.COLOR_RGBA2GRAY, 0);
+        const eyeDx = Math.abs(tr.eye.x - tl.eye.x) || 1;
+        const eyeDy = Math.abs(bl.eye.y - tl.eye.y) || 1;
 
-            // Using Histogram Equalization during tracking for consistency
-            const equalized = new window.cv.Mat();
-            window.cv.equalizeHist(gray, equalized);
+        const sx = (80 - 20) / eyeDx;
+        const sy = (80 - 20) / eyeDy;
 
-            result = new window.cv.Mat();
-            mask = new window.cv.Mat();
-
-            window.cv.matchTemplate(equalized, this.irisTemplate, result, window.cv.TM_CCOEFF_NORMED, mask);
-
-            const minMax = window.cv.minMaxLoc(result, mask);
-            const { maxLoc, maxVal } = minMax;
-
-            equalized.delete();
-
-            if (maxVal > 0.4) { // Highly sensitive threshold
-                const cx = maxLoc.x + this.templateRect.width / 2;
-                const cy = maxLoc.y + this.templateRect.height / 2;
-                this.lastPosition = { x: cx, y: cy };
-            }
-
-            return this.lastPosition;
-
-        } catch (err) {
-            console.error("Tracking Error:", err);
-            return this.lastPosition;
-        } finally {
-            if (src) src.delete();
-            if (gray) gray.delete();
-            if (result) result.delete();
-            if (mask) mask.delete();
-        }
+        return {
+            x: 50 + (eyePt.x - center.eye.x) * sx,
+            y: 50 + (eyePt.y - center.eye.y) * sy
+        };
     }
 
     reset() {
-        if (this.irisTemplate) {
-            try { this.irisTemplate.delete(); } catch (e) { }
-        }
         this.isReady = false;
-        this.irisTemplate = null;
+        this.isCalibrated = false;
+        this.calibrationPoints = [];
+        this.lastResults = null;
     }
 }

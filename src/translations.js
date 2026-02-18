@@ -1,19 +1,26 @@
+
 export const TRANSLATIONS = {
     en: {
         title: "HE Cognitive Suite",
         subtitle: "Select a diagnostic test to begin.",
         clinical_note: "For Clinical Research Use Only",
-        trails_test: "Number Connection (Trails)",
+        trails_test: "Trails Test A (NCT-A)",
+        trails_b_test: "Trails Test B (NCT-B)",
         stroop_test: "Stroop Color Test",
         start: "Start",
         back: "Back",
         menu: "Menu",
         retry: "Retry",
 
-        // Trails
-        trails_intro: "Trails Test A",
-        trails_desc: "Connect numbers 1 to 10 in order as fast as possible.",
-        trails_start: "Start Test",
+        // Trails A
+        trails_intro: "Number Connection (NCT-A)",
+        trails_desc: "Connect numbers 1 to 25 sequentially as fast as possible. This measures psychomotor speed and visual scanning.",
+        trails_start: "Start NCT-A",
+
+        // Trails B
+        trails_b_intro: "Number-Letter Connection (NCT-B)",
+        trails_b_desc: "Alternate between numbers and letters (1-A-2-B-3-C...) in order. This assesses executive function and set-shifting.",
+        trails_b_start: "Start NCT-B",
 
         // Stroop
         stroop_intro_title: "Color Reaction Test",
@@ -57,23 +64,30 @@ export const TRANSLATIONS = {
 
         // Menu Labels
         detect_minimal: "For Minimal / Covert HE",
-        detect_overt: "For Overt HE (Grade 1)"
+        detect_overt: "For Overt HE (Grade 1)",
+        detect_executive: "Executive Function & Set Shifting"
     },
     hi: {
         title: "HE कॉग्निटिव सुइट",
         subtitle: "शुरू करने के लिए एक परीक्षण चुनें।",
         clinical_note: "केवल नैदानिक अनुसंधान के लिए",
-        trails_test: "नंबर कनेक्शन (ट्रेल्स)",
+        trails_test: "ट्रेल्स ए (NCT-A)",
+        trails_b_test: "ट्रेल्स बी (NCT-B)",
         stroop_test: "स्ट्रूप रंग परीक्षण",
         start: "शुरू करें",
         back: "वापस",
         menu: "मेन्यू",
         retry: "फिर से करें",
 
-        // Trails
-        trails_intro: "ट्रेल्स परीक्षण A",
-        trails_desc: "संख्या 1 से 10 को जितनी जल्दी हो सके क्रम में जोड़ें।",
-        trails_start: "परीक्षण शुरू करें",
+        // Trails A
+        trails_intro: "नंबर कनेक्शन (NCT-A)",
+        trails_desc: "संख्या 1 से 25 को जितनी जल्दी हो सके क्रम में जोड़ें। यह साइकोमोटर गति को मापता है।",
+        trails_start: "NCT-A शुरू करें",
+
+        // Trails B
+        trails_b_intro: "संख्या-अक्षर कनेक्शन (NCT-B)",
+        trails_b_desc: "क्रम में संख्याओं और अक्षरों (1-A-2-B...) के बीच बारी-बारी से बदलें।",
+        trails_b_start: "NCT-B शुरू करें",
 
         // Stroop
         stroop_intro_title: "रंग प्रतिक्रिया परीक्षण",
@@ -82,7 +96,7 @@ export const TRANSLATIONS = {
         part1_instr1: "आपको हैशटैग दिखाई देंगे जैसे",
         part1_instr2: "उस बटन को दबाएं जो",
         ink_color: "स्याही के रंग",
-        part1_instr2_suffix: "से मेल खाता हो।", // Grammar adjustment
+        part1_instr2_suffix: "से मेल खाता हो।",
         part2_title: "भाग 2 (ON स्टेट)",
         part2_instr1: "आपको शब्द दिखाई देंगे जैसे",
         part2_instr2: "शब्द को अनदेखा करें! उस बटन को दबाएं जो स्याही के रंग से मेल खाता हो।",
@@ -118,23 +132,30 @@ export const TRANSLATIONS = {
 
         // Menu Labels
         detect_minimal: "न्यूनतम / गुप्त HE के लिए (Minimal/Covert)",
-        detect_overt: "स्पष्ट HE (ग्रेड 1) के लिए (Overt Grade 1)"
+        detect_overt: "स्पष्ट HE (ग्रेड 1) के लिए (Overt Grade 1)",
+        detect_executive: "कार्यकारी कार्य और सेट स्थानांतरण (Executive Function)"
     },
     mr: {
         title: "HE कॉग्निटिव सुइट",
         subtitle: "सुरू करण्यासाठी चाचणी निवडा.",
         clinical_note: "फक्त क्लिनिकल संशोधनासाठी",
-        trails_test: "नंबर कनेक्शन (ट्रेल्स)",
+        trails_test: "ट्रेल्स ए (NCT-A)",
+        trails_b_test: "ट्रेल्स बी (NCT-B)",
         stroop_test: "स्ट्रूप रंग चाचणी",
         start: "सुरू करा",
         back: "मागे",
         menu: "मेनू",
         retry: "पुन्हा करा",
 
-        // Trails
-        trails_intro: "ट्रेल्स चाचणी A",
-        trails_desc: "संख्या 1 ते 10 शक्य तितक्या लवकर क्रमाने जोडा.",
-        trails_start: "चाचणी सुरू करा",
+        // Trails A
+        trails_intro: "नंबर कनेक्शन (NCT-A)",
+        trails_desc: "संख्या 1 ते 25 शक्य तितक्या लवकर क्रमाने जोडा।",
+        trails_start: "NCT-A सुरू करा",
+
+        // Trails B
+        trails_b_intro: "संख्या-अक्षर कनेक्शन (NCT-B)",
+        trails_b_desc: "संख्या आणि अक्षरे (1-A-2-B...) यांच्यात आलटून पालटून जोडा।",
+        trails_b_start: "NCT-B सुरू करा",
 
         // Stroop
         stroop_intro_title: "रंग प्रतिक्रिया चाचणी",
@@ -179,6 +200,7 @@ export const TRANSLATIONS = {
 
         // Menu Labels
         detect_minimal: "किमान / सुप्त HE साठी (Minimal/Covert)",
-        detect_overt: "स्पष्ट HE (ग्रेड 1) साठी (Overt Grade 1)"
+        detect_overt: "स्पष्ट HE (ग्रेड 1) साठी (Overt Grade 1)",
+        detect_executive: "कार्यकारी कार्य आणि सेट शिफ्टिंग (Executive Function)"
     }
 };

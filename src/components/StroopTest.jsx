@@ -212,7 +212,13 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
                         <button
                             key={idx}
                             onClick={() => handleOptionClick(opt)}
+                            aria-label={`Select ${opt.name}`}
                             className="flex-1 btn-primary text-xl active:scale-95 transition-all shadow-lg border-t border-white/10 hover:brightness-110 py-6 font-bold tracking-wider"
+                            style={{
+                                background: `linear-gradient(135deg, ${opt.value}, ${opt.value}bb)`,
+                                border: `1px solid ${opt.value}55`,
+                                borderTop: `1px solid ${opt.value}aa`
+                            }}
                         >
                             {opt.name}
                         </button>

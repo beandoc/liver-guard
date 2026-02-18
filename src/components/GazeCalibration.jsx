@@ -1,315 +1,468 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { IrisTracker } from '../utils/IrisTracker';
 
+const CALIBRATION_POINTS = [
+    { id: 'center', x: 50, y: 50, label: 'Look at the Center' },
+    { id: 'top-left', x: 20, y: 20, label: 'Look Top-Left' },
+    { id: 'top-right', x: 80, y: 20, label: 'Look Top-Right' },
+    { id: 'bottom-left', x: 20, y: 80, label: 'Look Bottom-Left' },
+    { id: 'bottom-right', x: 80, y: 80, label: 'Look Bottom-Right' },
+];
+
+// Phase flow: 'intro' -> 'engine_loading' -> 'camera_init' -> 'detecting' -> 'calibration' -> 'complete' | 'error'
 const GazeCalibration = ({ onComplete, onCancel }) => {
-    // Phase: 'intro' -> 'camera_init' -> 'capture_template' -> 'verifying' -> 'complete'
     const [phase, setPhase] = useState('intro');
-    const [cameraError, setCameraError] = useState(null);
-    const [debugMsg, setDebugMsg] = useState('Align eyes in the box. Keep head still.');
-    const [cvReady, setCvReady] = useState(false);
+    const [statusMsg, setStatusMsg] = useState('');
+    const [errorMsg, setErrorMsg] = useState('');
+    const [engineReady, setEngineReady] = useState(false);
+
+    // Calibration State
+    const [calIdx, setCalIdx] = useState(0);
+    const [isPointActive, setIsPointActive] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    const [gazePos, setGazePos] = useState(null);
+    const [confidence, setConfidence] = useState(0);
+    const [isHeadSteady, setIsHeadSteady] = useState(true);
+    const [headWarning, setHeadWarning] = useState(false);
+    const [isTooDark, setIsTooDark] = useState(false);
+    const [postureFeedback, setPostureFeedback] = useState({ msg: '', ok: false });
 
     const videoRef = useRef(null);
-    const canvasRef = useRef(null);
     const trackerRef = useRef(new IrisTracker());
     const streamRef = useRef(null);
+    const rafRef = useRef(null);
+    const lastFaceZRef = useRef(null);
+    const phaseRef = useRef('intro');
 
-    // Initial Setup & OpenCV Check
+    // Keep phaseRef in sync so the tracking loop can read it without stale closures
     useEffect(() => {
-        const checkCv = setInterval(() => {
-            if (window.cv && window.cv.Mat) {
-                setCvReady(true);
-                clearInterval(checkCv);
+        phaseRef.current = phase;
+    }, [phase]);
+
+    // Step 1: Pre-load the MediaPipe engine as soon as the component mounts
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadEngine = async () => {
+            setPhase('engine_loading');
+            setStatusMsg('Loading AI engine... (first load may take 10-15s)');
+
+            // Wait for the CDN script to expose window.FaceMesh
+            let attempts = 0;
+            while (!window.FaceMesh && attempts < 40) {
+                await new Promise(r => setTimeout(r, 500));
+                attempts++;
             }
-        }, 500);
+
+            if (!window.FaceMesh) {
+                if (!cancelled) {
+                    setErrorMsg('MediaPipe failed to load from CDN. Check your internet connection and refresh.');
+                    setPhase('error');
+                }
+                return;
+            }
+
+            setStatusMsg('Compiling AI model (WASM)...');
+            const ok = await trackerRef.current.initialize();
+
+            if (cancelled) return;
+
+            if (ok) {
+                setEngineReady(true);
+                setPhase('intro');
+                setStatusMsg('AI engine ready.');
+            } else {
+                setErrorMsg('AI engine failed to initialize. This may be a browser compatibility issue. Try Chrome or Edge.');
+                setPhase('error');
+            }
+        };
+
+        loadEngine();
 
         return () => {
-            clearInterval(checkCv);
+            cancelled = true;
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
             if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current.getTracks().forEach(t => t.stop());
             }
         };
     }, []);
 
     const startCamera = async () => {
-        if (!cvReady) {
-            setCameraError("AI Engine (OpenCV) is still loading. Please wait a moment.");
-            setPhase('error');
-            return;
-        }
+        if (!engineReady) return;
 
+        // Critical Fix: Do NOT set phase to 'camera_init' immediately if it hides the video element.
+        // We keep the structure stable.
         setPhase('camera_init');
-
-        // Safety timeout
-        const timeoutId = setTimeout(() => {
-            if (videoRef.current && !videoRef.current.srcObject) {
-                setCameraError("Camera initialization timed out. Please refresh or check browser permissions.");
-                setPhase('error');
-            }
-        }, 10000);
+        setStatusMsg('Requesting camera access...');
 
         try {
-            // Simplified constraints for better compatibility on mobile/safari
-            // We ask for HD, but allow fallback
-            const constraints = {
-                video: {
-                    facingMode: "user",
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                }
-            };
-
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            clearTimeout(timeoutId);
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+            });
             streamRef.current = stream;
 
-            // Robust Binding: Poll for videoRef and bind stream
-            let attempts = 0;
-            const bindInterval = setInterval(() => {
-                attempts++;
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    videoRef.current.onloadedmetadata = () => {
-                        videoRef.current.play().catch(e => console.error("Play error:", e));
-                        setPhase('capture_template');
-                    };
-                    // Fallback for browsers
-                    setTimeout(() => {
-                        setPhase(current => {
-                            if (current === 'camera_init') {
-                                if (videoRef.current) videoRef.current.play().catch(() => { });
-                                return 'capture_template';
-                            }
-                            return current;
-                        });
-                    }, 1500);
+            const video = videoRef.current;
+            if (!video) {
+                throw new Error("Video element not found in DOM.");
+            }
 
-                    clearInterval(bindInterval);
-                }
-                if (attempts > 50) {
-                    clearInterval(bindInterval);
-                    setCameraError("Internal Error: Video element not found.");
-                    setPhase('error');
-                }
-            }, 100);
+            video.srcObject = stream;
+
+            // Wait for metadata to load
+            await new Promise((resolve) => {
+                video.onloadedmetadata = () => {
+                    resolve();
+                };
+            });
+
+            await video.play();
+            setPhase('detecting');
+            setStatusMsg('Searching for face...');
+            startTrackingLoop();
 
         } catch (err) {
-            clearTimeout(timeoutId);
-            console.error("Camera Error:", err);
-            setCameraError("Could not access camera. Please allow permissions and ensure no other app is using it.");
+            console.error('Camera Error:', err);
+            setErrorMsg(`Camera access denied: ${err.message}. Please allow camera permissions and retry.`);
             setPhase('error');
         }
     };
 
-    const captureTemplate = () => {
-        if (!videoRef.current || !window.cv) {
-            setDebugMsg("OpenCV not ready or Camera not active.");
-            return;
-        }
+    const startTrackingLoop = useCallback(() => {
+        const run = async () => {
+            const video = videoRef.current;
+            const tracker = trackerRef.current;
 
-        setDebugMsg("Scanning... Open eyes wide!");
+            if (video && tracker && video.readyState >= 2) {
+                // Brightness Check (P3) - Sample every 30 frames for performance
+                if (Math.random() > 0.95) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 40; canvas.height = 40;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, 40, 40);
+                    const data = ctx.getImageData(0, 0, 40, 40).data;
+                    let lum = 0;
+                    for (let i = 0; i < data.length; i += 4) {
+                        lum += (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+                    }
+                    setIsTooDark((lum / 400) < 40); // < 40 is clinical "too dark" threshold
+                }
 
-        // Slight delay to ensure UI updates
-        setTimeout(() => {
-            const success = trackerRef.current.initialize(videoRef.current);
+                try {
+                    const pos = await tracker.track(video);
 
-            if (success) {
-                setPhase('verifying');
-                setDebugMsg("Iris Template Captured! Verifying tracking...");
+                    if (pos) {
+                        setGazePos(pos.avg);
+                        setConfidence(Math.round(pos.confidence * 100));
 
-                // Verify by tracking for a few frames
-                verifyTracking();
-            } else {
-                setDebugMsg("Could not detect Iris. Please ensure good lighting and open eyes wider.");
-            }
-        }, 100);
-    };
+                        // 1. Precise Posture & Distance Check (P1/P2)
+                        // Optimal faceZ is ~0.33 of screen width (approx 45cm)
+                        let msg = '';
+                        let ok = true;
 
-    const verifyTracking = () => {
-        let goodFrames = 0;
-        const maxFrames = 30; // 1 sec at 30fps
-        let frameCount = 0;
+                        if (pos.faceZ < 0.25) { msg = 'Move Closer'; ok = false; }
+                        else if (pos.faceZ > 0.45) { msg = 'Move Further Back'; ok = false; }
+                        else if (pos.faceCenter.x < 0.35) { msg = 'Move Face Right →'; ok = false; }
+                        else if (pos.faceCenter.x > 0.65) { msg = '← Move Face Left'; ok = false; }
+                        else if (pos.faceCenter.y < 0.35) { msg = 'Lower your screen/face ↓'; ok = false; }
+                        else if (pos.faceCenter.y > 0.65) { msg = 'Raise your screen/face ↑'; ok = false; }
+                        else { msg = 'Position Optimal'; ok = true; }
 
-        const interval = setInterval(() => {
-            frameCount++;
-            if (!videoRef.current) {
-                clearInterval(interval);
-                return;
-            }
-            const pos = trackerRef.current.track(videoRef.current);
+                        setPostureFeedback({ msg, ok });
 
-            if (pos && pos.x > 0 && pos.y > 0) {
-                goodFrames++;
-            }
+                        // Head stability via face Z proxy
+                        if (lastFaceZRef.current !== null) {
+                            const zDiff = Math.abs(pos.faceZ - lastFaceZRef.current);
+                            setHeadWarning(zDiff > 0.04);
+                            setIsHeadSteady(zDiff <= 0.04);
+                        }
+                        lastFaceZRef.current = pos.faceZ;
 
-            if (frameCount >= maxFrames) {
-                clearInterval(interval);
-                if (goodFrames > 15) { // >50% confidence
-                    setPhase('complete');
-                    setDebugMsg("Tracking Verified. System Ready.");
-                } else {
-                    setDebugMsg("Tracking unstable. Retrying capture...");
-                    setPhase('capture_template');
+                        if (phaseRef.current === 'detecting' && ok) {
+                            setPhase('calibration');
+                            setStatusMsg('Face detected! Follow the white dot.');
+                        }
+                    } else {
+                        setConfidence(0);
+                        setGazePos(null);
+                        setPostureFeedback({ msg: 'Looking for face...', ok: false });
+                    }
+                } catch (err) {
+                    // Skip bad frames silently
                 }
             }
-        }, 33);
+            rafRef.current = requestAnimationFrame(run);
+        };
+        run();
+    }, []);
+
+    const runCalibrationStep = async () => {
+        if (isPointActive) return;
+        setIsPointActive(true);
+        setProgress(0);
+
+        const samples = [];
+        const startTime = Date.now();
+        const duration = 1500;
+
+        const collect = async () => {
+            const elapsed = Date.now() - startTime;
+            setProgress((elapsed / duration) * 100);
+
+            if (elapsed < duration) {
+                const pos = await trackerRef.current.track(videoRef.current);
+                if (pos) samples.push(pos.avg);
+                requestAnimationFrame(collect);
+            } else {
+                if (samples.length > 5) {
+                    const avgEye = {
+                        x: samples.reduce((s, p) => s + p.x, 0) / samples.length,
+                        y: samples.reduce((s, p) => s + p.y, 0) / samples.length,
+                    };
+                    const screenPt = { x: CALIBRATION_POINTS[calIdx].x, y: CALIBRATION_POINTS[calIdx].y };
+                    trackerRef.current.addCalibrationPoint(screenPt, avgEye);
+                }
+
+                setIsPointActive(false);
+                if (calIdx < CALIBRATION_POINTS.length - 1) {
+                    setCalIdx(prev => prev + 1);
+                } else {
+                    setPhase('complete');
+                    setStatusMsg('Calibration complete!');
+                }
+            }
+        };
+        collect();
     };
 
-    // --- RENDERERS ---
-
-    if (phase === 'intro') {
-        return (
-            <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
-                <div className="max-w-md w-full glass-panel p-8 border border-white/10 rounded-2xl shadow-blue-500/20">
-                    <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
-                        👁
+    // --- RENDER HELPERS ---
+    // We separate the overlay logic from the main structure so the <video> is always mounted
+    const renderOverlay = () => {
+        if (phase === 'engine_loading') {
+            return (
+                <div className="absolute inset-0 bg-slate-950 z-[50] flex flex-col items-center justify-center p-6 text-center">
+                    <div className="max-w-sm w-full glass-panel p-8 border border-white/10 rounded-2xl">
+                        <div className="w-16 h-16 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin mx-auto mb-6" />
+                        <h2 className="text-xl font-bold text-white mb-2">Preparing AI Engine</h2>
+                        <p className="text-slate-400 text-sm mb-4">{statusMsg}</p>
+                        <p className="text-slate-600 text-xs">This only happens once per session. The model is being compiled in your browser.</p>
                     </div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Iris Tracker Setup</h2>
-                    <p className="text-slate-400 mb-8 leading-relaxed text-sm">
-                        We use a clinical-grade "Hybrid CHT" algorithm to track eye movements.
-                        <br /><br />
-                        1. <strong>Hold phone steady</strong> at arm's length.
-                        <br />
-                        2. Ensure <strong>good lighting</strong> on your face.
-                        <br />
-                        3. When prompted, <strong>open eyes WIDE</strong>.
-                    </p>
+                </div>
+            );
+        }
 
-                    {!cvReady && (
-                        <div className="mb-4 text-xs text-indigo-400 bg-indigo-500/10 p-2 rounded animate-pulse">
-                            Loading AI Engine...
+        if (phase === 'error') {
+            return (
+                <div className="absolute inset-0 bg-slate-950 z-[50] flex flex-col items-center justify-center p-6 text-center">
+                    <div className="max-w-sm w-full glass-panel p-8 border border-red-500/20 rounded-2xl">
+                        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">⚠️</div>
+                        <h2 className="text-xl font-bold text-white mb-2">Initialization Failed</h2>
+                        <p className="text-red-400 text-sm mb-6">{errorMsg}</p>
+                        <div className="flex gap-3">
+                            <button onClick={onCancel} className="flex-1 px-4 py-3 rounded-xl border border-slate-700 text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                            <button onClick={() => window.location.reload()} className="flex-1 btn-primary">Reload Page</button>
                         </div>
-                    )}
-
-                    <div className="flex gap-4">
-                        <button
-                            onClick={onCancel}
-                            className="flex-1 px-4 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={startCamera}
-                            disabled={!cvReady}
-                            className={`flex-1 btn-primary text-lg shadow-lg shadow-indigo-500/20 ${!cvReady ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            Start Camera
-                        </button>
                     </div>
                 </div>
-            </div>
-        );
-    }
+            );
+        }
 
-    if (phase === 'error') {
-        return (
-            <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center animate-fadeIn text-center p-8">
-                <div className="text-red-500 text-4xl mb-4">⚠️</div>
-                <h3 className="text-xl text-white font-bold mb-2">Camera Access Failed</h3>
-                <p className="text-slate-400 mb-6">{cameraError}</p>
-                <button
-                    onClick={onCancel}
-                    className="px-6 py-2 bg-slate-800 rounded-lg text-slate-300"
-                >
-                    Close
-                </button>
-            </div>
-        );
-    }
+        if (phase === 'intro') {
+            return (
+                <div className="absolute inset-0 bg-slate-950 z-[50] flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
+                    <div className="max-w-md w-full glass-panel p-8 border border-white/10 rounded-2xl shadow-blue-500/20">
+                        <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
+                            🧬
+                        </div>
+                        <h2 className="text-2xl font-bold text-white mb-2">Precision Gaze Setup</h2>
+                        <p className="text-slate-400 mb-6 leading-relaxed text-sm">
+                            Using Google MediaPipe Face Mesh for clinical-grade iris tracking.
+                            <br /><br />
+                            A <strong>5-point calibration</strong> will map your eye movements to the screen.
+                            Hold your head still and follow the white dot.
+                        </p>
 
-    return (
-        <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center">
-            {/* Loading Overlay (Persistent until phase moves past camera_init) */}
-            {phase === 'camera_init' && (
-                <div className="absolute inset-0 bg-slate-950 z-[250] flex flex-col items-center justify-center animate-fadeIn">
-                    <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-8"></div>
-                    <h3 className="text-xl text-white font-bold">Initializing High-Res Camera...</h3>
-                    <p className="text-slate-500 mt-4 text-sm px-8 text-center">Please allow camera permissions if prompted</p>
+                        {engineReady ? (
+                            <div className="mb-6 flex items-center justify-center gap-2 text-emerald-400 text-xs font-bold">
+                                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                                AI Engine Ready
+                            </div>
+                        ) : (
+                            <div className="mb-6 flex items-center justify-center gap-2 text-yellow-400 text-xs font-bold">
+                                <div className="w-3 h-3 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                                Loading AI Engine...
+                            </div>
+                        )}
+
+                        <div className="flex gap-4">
+                            <button onClick={onCancel} className="flex-1 px-4 py-3 rounded-xl border border-slate-700 text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                            <button
+                                onClick={startCamera}
+                                disabled={!engineReady}
+                                className={`flex-1 btn-primary text-lg transition-all ${!engineReady ? 'opacity-40 cursor-not-allowed' : ''}`}
+                            >
+                                {engineReady ? 'Start Camera' : 'Loading...'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            )}
-            {/* Camera Feed */}
-            <div className="relative w-full h-full md:w-auto md:h-auto md:max-w-4xl md:aspect-video bg-black md:rounded-2xl overflow-hidden shadow-2xl border-0 md:border border-slate-800 flex items-center justify-center opacity-100 visible">
+            );
+        }
+
+        if (phase === 'camera_init') {
+            return (
+                <div className="absolute inset-0 bg-slate-950 z-[50] flex flex-col items-center justify-center p-6 text-center">
+                    <div className="max-w-sm w-full glass-panel p-8 border border-white/10 rounded-2xl">
+                        <div className="w-16 h-16 rounded-full border-4 border-blue-500/30 border-t-blue-500 animate-spin mx-auto mb-6" />
+                        <h2 className="text-xl font-bold text-white mb-2">Starting Camera</h2>
+                        <p className="text-slate-400 text-sm">{statusMsg}</p>
+                    </div>
+                </div>
+            );
+        }
+
+        return null; // For 'detecting', 'calibration', 'complete' - no full screen overlay
+    };
+
+    // --- MAIN RENDER ---
+    return (
+        <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center overflow-hidden">
+
+            {/* 1. Underlying Video Layer - ALWAYS RENDERED */}
+            <div className={`relative transition-all duration-700 ${phase === 'calibration' || phase === 'complete' ? 'w-32 h-32 absolute top-6 right-6 opacity-40 grayscale' : 'w-full h-full'}`}>
+                {/* 
+                   CRITICAL FIX: The video element is always present in the DOM. 
+                   We use overlay divs on top to hide it during intro/loading, 
+                   but we never unmount it. This prevents videoRef.current from becoming null.
+                */}
                 <video
                     ref={videoRef}
-                    className="w-full h-full object-cover transform scale-x-[-1] opacity-60 md:opacity-100" // Dimmed slightly on mobile for UI legibility
+                    className="w-full h-full object-cover transform scale-x-[-1]"
                     playsInline
                     muted
                 />
 
-                {/* Overlay Guide */}
-                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center overflow-hidden">
-                    {/* Focused Eye Zone (Matching ROI) */}
-                    <div className={`w-[85%] h-[35%] md:w-96 md:h-64 border-4 rounded-3xl transition-all duration-500 box-border mt-[-20%] ${phase === 'verifying'
-                        ? 'border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.5)]'
-                        : 'border-white/30 border-dashed animate-pulse'
-                        }`}>
-                        <div className="absolute inset-0 flex items-center justify-between px-8">
-                            <div className="w-8 h-8 border-t-2 border-l-2 border-white/20"></div>
-                            <div className="w-8 h-8 border-t-2 border-r-2 border-white/20"></div>
+                {phase === 'detecting' && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none z-20">
+                        {/* Face Guide Frame (P1 Fix) */}
+                        <div className={`w-[240px] h-[320px] border-2 rounded-[60px] transition-all duration-500 ${postureFeedback.ok ? 'border-emerald-500 scale-105 bg-emerald-500/5' : 'border-white/20 border-dashed scale-100'} flex items-center justify-center relative`}>
+                            <div className="absolute -top-12 left-0 w-full text-center">
+                                <span className={`text-xs font-bold uppercase tracking-widest ${postureFeedback.ok ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                    {postureFeedback.ok ? '✓ Position Valid' : 'Align Face in Frame'}
+                                </span>
+                            </div>
+                            {!postureFeedback.ok && (
+                                <div className="text-white/40 text-sm font-mono animate-pulse text-center px-4">
+                                    {postureFeedback.msg || 'Searching...'}
+                                </div>
+                            )}
                         </div>
                     </div>
+                )}
 
-                    {/* Instructions Floating Above Box */}
-                    <div className="absolute top-[18%] bg-indigo-600/90 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 text-white font-black text-xs md:text-sm shadow-2xl z-20 animate-bounce">
-                        {phase === 'capture_template' ? 'ALIGN EYES IN BOX' : 'INITIALIZING'}
-                    </div>
+                {/* Live Gaze Dot */}
+                {gazePos && (
+                    <div
+                        className="absolute w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-[0_0_10px_rgba(16,185,129,0.8)] transition-all duration-75 pointer-events-none z-50"
+                        style={{
+                            left: `${100 - gazePos.x}%`,
+                            top: `${gazePos.y}%`,
+                            opacity: confidence / 100
+                        }}
+                    />
+                )}
+            </div>
 
-                    {/* Eye Level Guide line */}
-                    <div className="absolute top-[28%] w-full h-px bg-blue-500/60 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>
-                </div>
+            {/* 2. Overlays (Intro, Loading, Error, Camera Init) */}
+            {renderOverlay()}
 
-                {/* Status Overlay */}
-                <div className="absolute bottom-0 left-0 right-0 p-6 pt-12 bg-gradient-to-t from-black via-black/90 to-transparent z-10 flex flex-col items-center pb-8 md:pb-10">
-                    <div className="max-w-md w-full text-center">
-                        <p className={`font-mono text-sm mb-6 font-bold tracking-wide uppercase ${phase === 'verifying' ? 'text-emerald-400' : 'text-blue-300'}`}>
-                            {debugMsg}
-                        </p>
-
-                        {phase === 'capture_template' && (
-                            <button
-                                onClick={captureTemplate}
-                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-lg shadow-[0_0_30px_rgba(99,102,241,0.4)] animate-pulse transition-all active:scale-95 border border-indigo-400/50"
-                            >
-                                Tap to Capture Iris
-                            </button>
-                        )}
-
-                        {phase === 'verifying' && (
-                            <div className="flex items-center justify-center gap-3 text-emerald-400 font-bold bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 w-full">
-                                <span className="relative flex h-3 w-3">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                                </span>
-                                Verifying Stability...
+            {/* 3. Calibration UI (Interactive Layer) */}
+            {(phase === 'calibration' || phase === 'complete') && (
+                <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-30">
+                    {phase === 'calibration' && (
+                        <>
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center w-full px-12 pointer-events-none">
+                                <h2 className="text-white/40 text-3xl font-black uppercase tracking-widest mb-4">
+                                    {CALIBRATION_POINTS[calIdx].label}
+                                </h2>
+                                <p className="text-slate-500 text-xs mb-6">Point {calIdx + 1} of {CALIBRATION_POINTS.length}</p>
+                                {!isPointActive && (
+                                    <button
+                                        onClick={runCalibrationStep}
+                                        className="px-8 py-4 bg-white text-black rounded-full font-bold animate-bounce pointer-events-auto"
+                                    >
+                                        Tap Dot to Calibrate
+                                    </button>
+                                )}
                             </div>
-                        )}
+
+                            {/* Calibration Dot */}
+                            <div
+                                className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-500 ease-out cursor-pointer z-40"
+                                style={{ left: `${CALIBRATION_POINTS[calIdx].x}%`, top: `${CALIBRATION_POINTS[calIdx].y}%` }}
+                                onClick={runCalibrationStep}
+                            >
+                                <div className="relative w-12 h-12 flex items-center justify-center">
+                                    <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" />
+                                    <div className="w-4 h-4 bg-white rounded-full shadow-[0_0_20px_white]" />
+                                    {isPointActive && (
+                                        <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+                                            <circle cx="24" cy="24" r="20" stroke="white" strokeWidth="4" fill="transparent" strokeDasharray="125.6" strokeDashoffset={125.6 - (125.6 * progress) / 100} />
+                                        </svg>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* 4. Head & Light Warnings */}
+            {(headWarning || isTooDark) && phase !== 'intro' && phase !== 'camera_init' && (
+                <div className="absolute top-20 left-0 w-full flex flex-col items-center gap-2 pointer-events-none z-40">
+                    {headWarning && (
+                        <div className="bg-red-600/90 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-widest animate-bounce">
+                            Keep Head Still
+                        </div>
+                    )}
+                    {isTooDark && (
+                        <div className="bg-amber-600/90 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-widest animate-pulse border border-amber-400/50">
+                            Ambience Too Dark: Improve Lighting
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* 5. Status Panel */}
+            {phase !== 'intro' && phase !== 'camera_init' && phase !== 'engine_loading' && phase !== 'error' && (
+                <div className="absolute bottom-10 px-8 w-full max-w-sm z-40">
+                    <div className="bg-black/60 backdrop-blur-md p-4 rounded-2xl border border-white/10 text-center">
+                        <div className="flex justify-between items-center mb-2 px-2">
+                            <div className="flex flex-col items-start">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">Confidence</span>
+                                <span className={`text-xs font-mono font-bold ${confidence > 80 ? 'text-emerald-400' : confidence > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{confidence}%</span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">Stability</span>
+                                <span className={`text-xs font-mono font-bold ${isHeadSteady ? 'text-emerald-400' : 'text-red-400'}`}>{isHeadSteady ? 'STEADY' : 'MOVE SLOWLY'}</span>
+                            </div>
+                        </div>
+
+                        <p className="text-indigo-400 font-mono text-xs uppercase tracking-widest mb-1 italic">{statusMsg}</p>
 
                         {phase === 'complete' && (
                             <button
-                                onClick={() => {
-                                    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-                                    if (onComplete) onComplete(trackerRef.current);
-                                }}
-                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-lg shadow-lg shadow-emerald-500/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                onClick={() => onComplete(trackerRef.current)}
+                                className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold mt-4 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
                             >
-                                <span>Proceed to Tests</span>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                                Proceed to Clinical Tests ✓
                             </button>
                         )}
                     </div>
                 </div>
-            </div>
-
-            {/* Close Button */}
-            <button
-                onClick={() => {
-                    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-                    onCancel();
-                }}
-                className="absolute top-6 right-6 text-white/50 hover:text-white z-[201] bg-black/40 p-3 rounded-full backdrop-blur-md active:bg-white/10"
-            >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
+            )}
         </div>
     );
 };

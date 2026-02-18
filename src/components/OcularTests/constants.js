@@ -1,5 +1,12 @@
 
 export const OCULAR_TESTS = {
+    FIX: {
+        id: 'fix',
+        title: 'Fixation Stability',
+        label: 'Fixation (FIX)',
+        desc: 'Baseline Test. Keep your eyes locked on the center dot for 15 seconds without blinking if possible.',
+        demo: 'Simply stare at the center dot. Keep your head and eyes as still as possible.'
+    },
     MGST: {
         id: 'mgst',
         title: 'Memory Guided Saccades',
@@ -11,7 +18,7 @@ export const OCULAR_TESTS = {
         id: 'ast',
         title: 'Antisaccades',
         label: 'Antisaccades (AST)',
-        desc: 'Inhibitory Control Test. When a green dot appears on one side, immediately look to the OPPOSITE side.',
+        desc: 'Inhibitory Control Test. When a red dot appears on one side, immediately look to the OPPOSITE side.',
         demo: 'If the dot appears on the LEFT, look RIGHT. If it appears on the RIGHT, look LEFT. Do not look at the dot.'
     },
     SPT: {
@@ -31,31 +38,36 @@ export const OCULAR_TESTS = {
 };
 
 export const TEST_CONFIG = {
+    FIX: {
+        id: 'fix',
+        duration: 15000,
+        targetSize: 15,
+        type: 'fixation'
+    },
     MGST: {
         id: 'mgst',
-        duration: 45000,
+        duration: 60000, // Increased to 60s as per clinical protocol
         targetSize: 20,
         phases: {
             peripheral: 1500,
             center: 1500,
             response: 1500
         },
-        reps: { vertical: 12, horizontal: 22 },
-        type: 'memory_sequence' // Logic: Peripheral -> Center -> Blank
+        type: 'memory_sequence'
     },
     AST: {
         id: 'ast',
-        duration: 30000,
+        duration: 45000, // Increased to 45s
         targetSize: 20,
-        jumpInterval: 2500, // Time to respond
+        jumpInterval: 2500,
         type: 'antisaccade'
     },
     SPT: {
         id: 'spt',
-        duration: 32000, // 4 laps of 8s
+        duration: 40000,
         targetSize: 20,
-        lapTime: 8000, // 8 seconds per full lap (left->right->left)
-        type: 'smooth_linear' // Linear velocity, not sinusoidal
+        lapTime: 10000, // Slightly slower for better gain tracking on mobile
+        type: 'smooth_linear'
     },
     VGST: {
         id: 'vgst',
@@ -63,6 +75,24 @@ export const TEST_CONFIG = {
         targetSize: 20,
         jumpInterval: 1200,
         type: 'jump'
+    }
+};
+
+export const CLINICAL_THRESHOLDS = {
+    MGST: {
+        accuracy: 75, // %
+        latency: 450, // ms
+    },
+    AST: {
+        errorRate: 0.30, // 30%
+    },
+    SPT: {
+        gain: 0.8,
+        rmse: 15,
+    },
+    VGST: {
+        latency: 250, // ms
+        peakVelocityScale: 0.1, // Normalized
     }
 };
 
@@ -80,33 +110,6 @@ export const OCULAR_TRANSLATIONS = {
             acc[`${test.id}_demo`] = test.demo;
             return acc;
         }, {})
-    },
-    hi: {
-        ocular_tests_title: "नेत्र गति परीक्षण",
-        ocular_tests_subtitle: "नैदानिक MHE प्रोटोकॉल",
-        start_demo: "डेमो देखें",
-        start_test: "परीक्षण शुरू करें",
-        instruction: "निर्देश",
-        back_menu: "मेनू पर वापस",
-        ...Object.values(OCULAR_TESTS).reduce((acc, test) => {
-            acc[`${test.id}_title`] = test.title;
-            acc[`${test.id}_desc`] = test.desc;
-            acc[`${test.id}_demo`] = test.demo;
-            return acc;
-        }, {})
-    },
-    mr: {
-        ocular_tests_title: "नेत्र हालचाल चाचण्या",
-        ocular_tests_subtitle: "क्लिनिकल MHE प्रोटोकॉल",
-        start_demo: "डेमो पहा",
-        start_test: "चाचणी सुरू करा",
-        instruction: "सूचना",
-        back_menu: "मेनूवर परत",
-        ...Object.values(OCULAR_TESTS).reduce((acc, test) => {
-            acc[`${test.id}_title`] = test.title;
-            acc[`${test.id}_desc`] = test.desc;
-            acc[`${test.id}_demo`] = test.demo;
-            return acc;
-        }, {})
     }
+    // Hindi and Marathi usually derived from English keys in this repo's pattern
 };

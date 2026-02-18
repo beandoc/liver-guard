@@ -1,27 +1,35 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
-const GameCanvas = ({ onComplete, totalPoints = 10 }) => {
+const NCT_B_LABELS = ['1', 'A', '2', 'B', '3', 'C', '4', 'D', '5', 'E', '6', 'F', '7', 'G', '8', 'H', '9', 'I', '10', 'J', '11', 'K', '12', 'L', '13'];
+
+const GameCanvas = ({ onComplete, onExit, testType = 'A', totalPoints = 25 }) => {
   const [points, setPoints] = useState([]);
-  const [nextPoint, setNextPoint] = useState(1);
+  const [nextIndex, setNextIndex] = useState(0);
   const [lines, setLines] = useState([]);
   const [startTime, setStartTime] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [errorFlash, setErrorFlash] = useState(false);
+  const [exitConfirm, setExitConfirm] = useState(false);
   const canvasRef = useRef(null);
 
+  // Viewport Warning
+  const isSmallViewport = window.innerWidth < 360;
+
   useEffect(() => {
-    // Generate random non-overlapping points
     const generatePoints = () => {
       const generated = [];
-      const padding = 60; // Increased padding for better mobile safe area
-      const minDistance = 70; // Slightly increased for tap targets
+      const padding = 50;
+      // D7 fix: Slightly tighter minimum for 25 points, but proportional to width
+      const minDistance = Math.max(45, window.innerWidth / 8);
 
       let attempts = 0;
-      // Use window size but default to something reasonable if not available (though it always is in browser)
       const width = window.innerWidth;
       const height = window.innerHeight;
 
-      // Simple improved distribution
-      while (generated.length < totalPoints && attempts < 2000) {
+      const numPoints = testType === 'B' ? 25 : totalPoints;
+
+      while (generated.length < numPoints && attempts < 5000) {
         const x = Math.random() * (width - padding * 2) + padding;
         const y = Math.random() * (height - padding * 2) + padding;
 
@@ -32,7 +40,8 @@ const GameCanvas = ({ onComplete, totalPoints = 10 }) => {
         });
 
         if (!isTooClose) {
-          generated.push({ id: generated.length + 1, x, y });
+          const label = testType === 'B' ? NCT_B_LABELS[generated.length] : (generated.length + 1).toString();
+          generated.push({ index: generated.length, label, x, y });
         }
         attempts++;
       }
@@ -42,52 +51,116 @@ const GameCanvas = ({ onComplete, totalPoints = 10 }) => {
     const newPoints = generatePoints();
     setPoints(newPoints);
     setStartTime(performance.now());
-    setNextPoint(1);
+    setNextIndex(0);
     setLines([]);
-  }, [totalPoints]); // Reset when totalPoints changes (mount)
+    setElapsed(0);
+  }, [testType, totalPoints]);
+
+  // Live Timer Logic (D8)
+  useEffect(() => {
+    let interval;
+    if (startTime && nextIndex < points.length && nextIndex > 0) {
+      interval = setInterval(() => {
+        setElapsed((performance.now() - startTime) / 1000);
+      }, 100);
+    }
+    return () => clearInterval(interval);
+  }, [startTime, nextIndex, points.length]);
 
   const handleInteraction = (point) => {
-    if (point.id === nextPoint) {
+    if (point.index === nextIndex) {
       const now = performance.now();
 
-      // If first point, effectively start timer (though we set it on mount, this resets it for precision)
-      if (point.id === 1) {
+      if (point.index === 0) {
         setStartTime(now);
       }
 
-      // Add line from previous point if applicable
-      if (point.id > 1) {
-        const prev = points.find(p => p.id === point.id - 1);
+      if (point.index > 0) {
+        const prev = points.find(p => p.index === point.index - 1);
         if (prev) {
           setLines(curr => [...curr, { x1: prev.x, y1: prev.y, x2: point.x, y2: point.y }]);
         }
       }
 
-      setNextPoint(prev => prev + 1);
+      setNextIndex(prev => prev + 1);
 
-      // Check completion
-      if (point.id === totalPoints) {
-        const duration = now - startTime; // Use the initial startTime or the one reset at point 1
-        // Wait a tiny bit for the visual feedback of the last point
+      if (point.index === points.length - 1) {
+        const duration = now - (startTime || now);
         setTimeout(() => {
           onComplete(duration);
         }, 300);
       }
+    } else if (point.index > nextIndex) {
+      // Wrong point clicked - visual feedback
+      setErrorFlash(true);
+      setTimeout(() => setErrorFlash(false), 200);
     }
   };
 
+  const getTargetLabel = () => {
+    if (nextIndex < points.length) {
+      return points[nextIndex].label;
+    }
+    return '';
+  };
+
   return (
-    <div className="canvas-container w-full h-full relative overflow-hidden bg-slate-950" ref={canvasRef}>
+    <div
+      className={`canvas-container w-full h-full relative overflow-hidden transition-colors duration-200 ${errorFlash ? 'bg-red-950/20' : 'bg-slate-950'}`}
+      ref={canvasRef}
+      role="main"
+      aria-label={`${testType === 'A' ? 'NCT-A' : 'NCT-B'} Trail Making Test`}
+    >
+      {/* Viewport Warning (D7) */}
+      {isSmallViewport && (
+        <div className="absolute inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-8 text-center">
+          <div className="text-amber-500 mb-4 text-4xl">⚠️</div>
+          <h2 className="text-xl font-bold mb-2">Screen Too Small</h2>
+          <p className="text-slate-400 text-sm">NCT protocol requires a larger screen area for clinical validity. Please use a device with at least 360px width.</p>
+        </div>
+      )}
+
+      {/* Exit Button (D6) */}
+      <div className="absolute top-6 left-6 z-50">
+        {!exitConfirm ? (
+          <button
+            onClick={() => setExitConfirm(true)}
+            className="w-10 h-10 rounded-full bg-slate-800/80 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors backdrop-blur-md"
+            aria-label="Exit Test"
+          >
+            ✕
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 bg-red-950/80 border border-red-500/30 p-1 pl-4 rounded-full backdrop-blur-md animate-scaleIn">
+            <span className="text-xs font-bold text-red-200">Abort?</span>
+            <button onClick={onExit} className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold">Yes</button>
+            <button onClick={() => setExitConfirm(false)} className="px-3 py-1 rounded-full text-xs font-bold text-slate-300">No</button>
+          </div>
+        )}
+      </div>
+
       {/* Target Progress Indicator */}
-      <div className="absolute top-8 left-0 w-full text-center pointer-events-none z-0">
-        <div className="text-[15rem] leading-none font-black text-white/[0.03] animate-pulse select-none">
-          {nextPoint}
+      <div className="absolute top-1/2 left-0 w-full text-center pointer-events-none -translate-y-1/2 z-0">
+        <div className="text-[20rem] leading-none font-black text-white/[0.02] select-none uppercase">
+          {getTargetLabel()}
         </div>
       </div>
 
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-slate-800/80 border border-indigo-500/30 backdrop-blur-md z-30 shadow-lg flex items-center gap-3">
-        <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold">Target</span>
-        <span className="text-xl font-black text-white">{nextPoint}</span>
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 px-5 py-2 rounded-full bg-slate-800/80 border border-indigo-500/30 backdrop-blur-md z-30 shadow-xl flex items-center gap-4">
+        <div className="flex flex-col items-center">
+          <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold">Target</span>
+          <span className="text-2xl font-black text-white">{getTargetLabel()}</span>
+        </div>
+        <div className="w-px h-8 bg-white/10" />
+        <div className="flex flex-col items-center">
+          <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Progress</span>
+          <span className="text-sm font-mono text-slate-300">{nextIndex}/{points.length}</span>
+        </div>
+        <div className="w-px h-8 bg-white/10" />
+        <div className="flex flex-col items-center">
+          <span className="text-[10px] uppercase tracking-widest text-emerald-500 font-bold">Time</span>
+          <span className="text-sm font-mono text-emerald-400">{elapsed.toFixed(1)}s</span>
+        </div>
       </div>
 
       <svg className="absolute inset-0 pointer-events-none w-full h-full z-10">
@@ -99,7 +172,7 @@ const GameCanvas = ({ onComplete, totalPoints = 10 }) => {
             x2={line.x2}
             y2={line.y2}
             stroke="#6366f1"
-            strokeWidth="4"
+            strokeWidth="3"
             strokeLinecap="round"
             className="animate-fadeIn"
             style={{ filter: 'drop-shadow(0 0 4px rgba(99, 102, 241, 0.5))' }}
@@ -109,26 +182,73 @@ const GameCanvas = ({ onComplete, totalPoints = 10 }) => {
 
       {points.map(point => (
         <div
-          key={point.id}
-          className={`point ${point.id < nextPoint ? 'completed' : ''} ${point.id === nextPoint ? 'active' : ''} z-20`}
+          key={point.index}
+          className={`trail-node ${point.index < nextIndex ? 'completed' : ''} ${point.index === nextIndex ? 'active' : ''} z-20`}
           style={{
             left: point.x,
             top: point.y,
-            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)'
           }}
           onMouseDown={(e) => {
-            if (point.id === nextPoint) createRipple(e);
+            if (point.index === nextIndex) createRipple(e);
             handleInteraction(point);
           }}
           onTouchStart={(e) => {
             e.preventDefault();
-            if (point.id === nextPoint) createRipple(e.touches[0]);
+            if (point.index === nextIndex) createRipple(e.touches[0]);
             handleInteraction(point);
           }}
         >
-          {point.id}
+          {point.label}
         </div>
       ))}
+
+      <style>{`
+        .trail-node {
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+            backdrop-filter: blur(4px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .trail-node.active {
+            border-color: #6366f1;
+            color: white;
+            background: #6366f1;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+            scale: 1.1;
+            z-index: 30;
+        }
+        .trail-node.completed {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: rgba(16, 185, 129, 0.8);
+            scale: 0.9;
+        }
+        .tap-ripple {
+            position: absolute;
+            background: rgba(99, 102, 241, 0.4);
+            border-radius: 50%;
+            transform: scale(0);
+            animation: ripple-animation 0.4s ease-out;
+            pointer-events: none;
+            z-index: 40;
+        }
+        @keyframes ripple-animation {
+            to { transform: scale(2.5); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 

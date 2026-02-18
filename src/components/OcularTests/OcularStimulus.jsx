@@ -17,8 +17,16 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete }) => {
     // Visual State for React Render
     const [targetPos, setTargetPos] = useState({ x: 50, y: 50, visible: true });
 
+    // Live Gaze State
+    const [liveGaze, setLiveGaze] = useState(null);
+    const [headWarning, setHeadWarning] = useState(false);
+    const [isTooDark, setIsTooDark] = useState(false);
+    const [postureWarning, setPostureWarning] = useState('');
+    const startPostureRef = useRef(null);
+
     // Demo Text State
     const [demoInstruction, setDemoInstruction] = useState('');
+    const lastFaceZRef = useRef(null);
 
     useEffect(() => {
         // --- High Performance Camera Setup for Hybrid Tracker ---
@@ -115,6 +123,10 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete }) => {
                 newState = { x, y: 50, visible: true, color: '#6366f1' };
                 if (isDemo) instruction = 'Track smoothly.';
             }
+            else if (config.type === 'fixation') {
+                newState = { x: 50, y: 50, visible: true, color: '#fcd34d' };
+                if (isDemo) instruction = 'Stare only at the center dot.';
+            }
 
             // --- 2. Update Visuals ---
             if (newState.x !== targetStateRef.current.x || newState.y !== targetStateRef.current.y || newState.visible !== targetStateRef.current.visible) {
@@ -123,19 +135,63 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete }) => {
                 targetStateRef.current = newState;
             }
 
-            // --- 3. Hybrid Tracking Phase B ---
+            // --- 3. Clinical Tracking (MediaPipe) ---
             if (!isDemo && tracker && videoRef.current && videoRef.current.readyState === 4) {
-                const pos = tracker.track(videoRef.current);
-                if (pos) {
-                    gazeDataRef.current.push({
-                        time: now,
-                        eyeX: pos.x, // Direct iris position
-                        eyeY: pos.y,
-                        targetX: targetStateRef.current.x,
-                        targetY: targetStateRef.current.y,
-                        targetVisible: targetStateRef.current.visible
-                    });
+                // Brightness Check (P3)
+                if (Math.random() > 0.98) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 40; canvas.height = 40;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(videoRef.current, 0, 0, 40, 40);
+                    const data = ctx.getImageData(0, 0, 40, 40).data;
+                    let lum = 0;
+                    for (let i = 0; i < data.length; i += 4) {
+                        lum += (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+                    }
+                    setIsTooDark((lum / 400) < 40);
                 }
+
+                tracker.track(videoRef.current).then(pos => {
+                    if (pos) {
+                        // 1. Snapshot / Compare Posture (P1/P2)
+                        if (!startPostureRef.current) {
+                            startPostureRef.current = { z: pos.faceZ, center: pos.faceCenter };
+                        } else {
+                            const zDiff = Math.abs(pos.faceZ - startPostureRef.current.z);
+                            const xDiff = Math.abs(pos.faceCenter.x - startPostureRef.current.center.x);
+                            const yDiff = Math.abs(pos.faceCenter.y - startPostureRef.current.center.y);
+
+                            if (zDiff > 0.06) setPostureWarning('Distance Changed: Re-align');
+                            else if (xDiff > 0.1 || yDiff > 0.1) setPostureWarning('Face Drifted: Center yourself');
+                            else setPostureWarning('');
+                        }
+
+                        // Live Feedback
+                        const gaze = tracker.getGaze(pos.avg);
+                        setLiveGaze(gaze);
+
+                        // Head Stability Warning
+                        if (lastFaceZRef.current) {
+                            const zDiff = Math.abs(pos.faceZ - lastFaceZRef.current);
+                            setHeadWarning(zDiff > 0.05); // Warn if moving too much toward/away
+                        }
+                        lastFaceZRef.current = pos.faceZ;
+
+                        gazeDataRef.current.push({
+                            time: Date.now(),
+                            eyeX: pos.avg.x,
+                            eyeY: pos.avg.y,
+                            leftEye: pos.left,
+                            rightEye: pos.right,
+                            isBlinking: pos.isBlinking,
+                            targetX: targetStateRef.current.x,
+                            targetY: targetStateRef.current.y,
+                            targetVisible: targetStateRef.current.visible
+                        });
+                    } else {
+                        setLiveGaze(null);
+                    }
+                });
             }
 
             requestRef.current = requestAnimationFrame(animate);
@@ -153,7 +209,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete }) => {
 
     // Render logic
     return (
-        <div className="fixed inset-0 bg-black cursor-none touch-none overflow-hidden z-[100]">
+        <div className="fixed inset-0 bg-black cursor-none touch-none overflow-hidden z-[100] select-none" style={{ touchAction: 'none' }}>
             {/* Target */}
             {targetPos.visible && (
                 <div
@@ -187,6 +243,39 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete }) => {
                     </span>
                 </div>
             )}
+
+            {/* Live Gaze Cursor (Clinician Feedback) */}
+            {!isDemo && liveGaze && (
+                <div
+                    className="absolute w-6 h-6 border-2 border-white/30 rounded-full flex items-center justify-center pointer-events-none transition-all duration-75"
+                    style={{
+                        left: `${liveGaze.x}%`,
+                        top: `${liveGaze.y}%`,
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                    }}
+                >
+                    <div className="w-1 h-1 bg-white rounded-full opacity-50" />
+                </div>
+            )}
+
+            {/* Warnings Container */}
+            <div className="absolute top-20 left-0 w-full flex flex-col items-center gap-2 pointer-events-none">
+                {headWarning && (
+                    <div className="bg-red-600/90 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-tighter animate-bounce">
+                        Keep Head Still
+                    </div>
+                )}
+                {postureWarning && (
+                    <div className="bg-orange-600/90 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-tighter animate-pulse border border-orange-400">
+                        {postureWarning}
+                    </div>
+                )}
+                {isTooDark && (
+                    <div className="bg-amber-600/90 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-tighter animate-pulse border border-amber-400/50">
+                        Environment Too Dark
+                    </div>
+                )}
+            </div>
 
             {/* Indication of Active Recording */}
             {!isDemo && (
