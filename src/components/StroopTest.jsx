@@ -193,12 +193,12 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
 
             <div className="flex-1 flex flex-col items-center justify-center">
                 <div
-                    className="text-[10rem] font-bold transition-all duration-100 transform font-mono select-none"
+                    className="text-[8rem] md:text-[15rem] font-black transition-all duration-100 transform font-mono select-none"
                     style={{
                         color: currentStimulus?.ink.value,
-                        textShadow: '0 0 50px rgba(0,0,0,0.5)',
-                        letterSpacing: '-2px',
-                        lineHeight: 1
+                        textShadow: `0 0 60px ${currentStimulus?.ink.value}80`, // Glow effect
+                        letterSpacing: '-5px',
+                        lineHeight: 0.8
                     }}
                 >
                     {currentStimulus?.text}
