@@ -122,26 +122,35 @@ const OcularResults = ({ testId, results, onRetry, onExit, onNext, lang = 'en' }
                 </div>
                 {showReplay ? (
                     <div className="h-44 relative flex items-center justify-center bg-black/40 p-4 animate-scaleIn">
-                        <div className="absolute inset-4 border border-white/10 rounded-lg">
-                            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/10" />
-                            <div className="absolute top-1/2 left-0 right-0 h-px bg-white/10" />
+                        <div className="absolute inset-4 border border-white/10 rounded-lg bg-black/40 shadow-inner">
+                            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/5" />
+                            <div className="absolute top-1/2 left-0 right-0 h-px bg-white/5" />
 
                             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible preserve-3d">
                                 {results.rawData && results.rawData.length > 0 ? (
-                                    <polyline
-                                        points={results.rawData.map(p => `${p.x},${p.y}`).join(' ')}
-                                        fill="none"
-                                        stroke="#10b981"
-                                        strokeWidth="1.2"
-                                        strokeOpacity="0.8"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        className="animate-shimmer"
-                                    />
+                                    <>
+                                        <polyline
+                                            points={results.rawData.map(p => `${p.x},${p.y}`).join(' ')}
+                                            fill="none"
+                                            stroke="#10b981"
+                                            strokeWidth="0.8"
+                                            strokeOpacity="0.6"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            className="animate-shimmer"
+                                        />
+                                        {/* End Point Marker */}
+                                        <circle
+                                            cx={results.rawData[results.rawData.length - 1].x}
+                                            cy={results.rawData[results.rawData.length - 1].y}
+                                            r="2"
+                                            fill="#ef4444"
+                                            className="animate-pulse"
+                                        />
+                                    </>
                                 ) : (
-                                    <text x="50" y="50" textAnchor="middle" fill="#475569" fontSize="6px">No Coordinate Data</text>
+                                    <text x="50" y="50" textAnchor="middle" fill="#475569" fontSize="4" className="uppercase font-mono tracking-widest">No Telemetry Data</text>
                                 )}
-                                <circle cx="50" cy="50" r="2" fill="#6366f1" style={{ filter: 'drop-shadow(0 0 4px #6366f1)' }} />
                             </svg>
                         </div>
                         <span className="absolute bottom-1 right-2 text-[7px] text-slate-600 font-mono">SCREEN SPACE (0-100%)</span>

@@ -103,13 +103,16 @@ function App() {
           </div>
 
           <div className="mb-8 mt-4 relative">
-            <div className="flex justify-center mb-4">
-              <div className="relative">
-                <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg border border-white/10">
-                  <SVGLogo />
+            <div className="flex justify-center mb-6">
+              <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/5 backdrop-blur-sm">
+                <div className="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                 </div>
-                <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-lg uppercase tracking-tighter">
-                  v2.5 Clinical
+                <div className="text-left">
+                  <div className="font-bold text-xl tracking-tight text-white leading-none">Liver<span className="text-indigo-400">Guard</span></div>
+                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Clinical v2.5</div>
                 </div>
               </div>
             </div>

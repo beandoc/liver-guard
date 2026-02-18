@@ -19,9 +19,10 @@ const GameCanvas = ({ onComplete, onExit, testType = 'A', totalPoints = 25 }) =>
   useEffect(() => {
     const generatePoints = () => {
       const generated = [];
-      const padding = 50;
-      // D7 fix: Slightly tighter minimum for 25 points, but proportional to width
-      const minDistance = Math.max(45, window.innerWidth / 8);
+      const isMobile = window.innerWidth < 640;
+      const padding = isMobile ? 30 : 60; // Tighter padding for mobile
+      // Dynamic minimum distance to prevent overcrowding on small screens
+      const minDistance = isMobile ? 42 : Math.max(50, window.innerWidth / 12);
 
       let attempts = 0;
       const width = window.innerWidth;

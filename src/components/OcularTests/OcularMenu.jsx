@@ -100,6 +100,7 @@ const OcularMenu = ({ onExit, lang = 'en' }) => {
                     isDemo={viewMode === 'demo'}
                     tracker={trackerRef.current} // Pass the hybrid tracker
                     onComplete={viewMode === 'demo' ? () => setViewMode('intro') : handleTestComplete}
+                    onExit={viewMode === 'demo' ? () => setViewMode('intro') : backToMenu}
                 />
 
                 {viewMode === 'demo' && (

@@ -37,18 +37,18 @@ const ClinicalDashboard = ({ results, onExit }) => {
                 </div>
 
                 {/* Risk Summary */}
-                <div className={`p-6 rounded-3xl border flex items-center justify-between shadow-2xl ${overallRisk > 1 ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                <div className={`p-6 rounded-3xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-2xl ${overallRisk > 1 ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                     <div>
                         <div className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-60 mb-1">Clinician Summary</div>
                         <h2 className={`text-2xl font-bold ${overallRisk > 1 ? 'text-red-400' : 'text-emerald-400'}`}>
-                            {overallRisk > 1 ? 'MHE Risk Suspected' : 'No Significant Impairment Detected'}
+                            {overallRisk > 1 ? 'MHE Risk Suspected' : 'No Significant Impairment'}
                         </h2>
                         <p className="text-slate-400 text-xs mt-2 max-w-md">
                             Based on {4 - [results.nctA, results.nctB, results.stroop, results.ocular].filter(r => !r).length} biomarkers collected.
                             Correlation with clinical history advised.
                         </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left md:text-right w-full md:w-auto border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
                         <div className="text-4xl font-black text-white">{overallRisk}/4</div>
                         <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Red Flags</div>
                     </div>

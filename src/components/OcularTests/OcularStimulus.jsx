@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TEST_CONFIG } from './constants';
 
-const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete }) => {
+const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit }) => {
     const requestRef = useRef();
     const startTimeRef = useRef(null);
     const gazeDataRef = useRef([]);
@@ -283,6 +283,18 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete }) => {
                     <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
                     <span className="text-red-500 text-xs font-mono">REC</span>
                 </div>
+            )}
+
+            {/* Exit Button (D6) */}
+            {!isDemo && onExit && (
+                <button
+                    onClick={onExit}
+                    className="absolute top-4 left-4 z-50 w-10 h-10 rounded-full bg-slate-800/80 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors backdrop-blur-md active:scale-95 hover:bg-red-500/20 hover:border-red-500/30 group"
+                >
+                    <svg className="w-5 h-5 group-hover:stroke-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             )}
 
             {/* Hidden Video for Tracking */}

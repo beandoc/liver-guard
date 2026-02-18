@@ -186,8 +186,17 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
 
     return (
         <div className="flex flex-col h-full w-full max-w-md mx-auto relative animate-fadeIn justify-between">
-            <div className="absolute top-4 w-full flex justify-between px-6 text-slate-500 text-sm font-semibold tracking-widest uppercase">
-                <span>{stage === STAGES.OFF_STAGE ? t.part1_header : t.part2_header}</span>
+            <div className="absolute top-4 w-full flex justify-between items-center px-4 md:px-6 text-slate-500 text-sm font-semibold tracking-widest uppercase z-50">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={onExit}
+                        className="w-8 h-8 rounded-full bg-slate-800/80 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                        aria-label="Exit Test"
+                    >
+                        ✕
+                    </button>
+                    <span>{stage === STAGES.OFF_STAGE ? t.part1_header : t.part2_header}</span>
+                </div>
                 <span>{correctCount} / {REQUIRED_CORRECT_RUNS}</span>
             </div>
 
@@ -195,7 +204,7 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
                 <div
                     className="font-black transition-all duration-100 transform font-mono select-none"
                     style={{
-                        fontSize: '35vw', // Massive relative to screen width
+                        fontSize: 'min(35vw, 12rem)', // Responsive but capped
                         color: currentStimulus?.ink.value,
                         textShadow: `0 0 40px ${currentStimulus?.ink.value}80`,
                         letterSpacing: '-0.05em',
