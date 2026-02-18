@@ -60,20 +60,38 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
             };
 
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
             clearTimeout(timeoutId);
             streamRef.current = stream;
 
-            // Wait for video element
-            setTimeout(() => {
+            // Robust Binding: Poll for videoRef and bind stream
+            let attempts = 0;
+            const bindInterval = setInterval(() => {
+                attempts++;
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     videoRef.current.onloadedmetadata = () => {
                         videoRef.current.play().catch(e => console.error("Play error:", e));
                         setPhase('capture_template');
                     };
+                    // Fallback for browsers
+                    setTimeout(() => {
+                        setPhase(current => {
+                            if (current === 'camera_init') {
+                                if (videoRef.current) videoRef.current.play().catch(() => { });
+                                return 'capture_template';
+                            }
+                            return current;
+                        });
+                    }, 1500);
+
+                    clearInterval(bindInterval);
                 }
-            }, 500);
+                if (attempts > 50) {
+                    clearInterval(bindInterval);
+                    setCameraError("Internal Error: Video element not found.");
+                    setPhase('error');
+                }
+            }, 100);
 
         } catch (err) {
             clearTimeout(timeoutId);
@@ -199,17 +217,16 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
         );
     }
 
-    if (phase === 'camera_init') {
-        return (
-            <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center animate-fadeIn">
-                <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-8"></div>
-                <h3 className="text-xl text-white font-bold">Initializing High-Res Camera...</h3>
-            </div>
-        );
-    }
-
     return (
         <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center">
+            {/* Loading Overlay (Persistent until phase moves past camera_init) */}
+            {phase === 'camera_init' && (
+                <div className="absolute inset-0 bg-slate-950 z-[250] flex flex-col items-center justify-center animate-fadeIn">
+                    <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-8"></div>
+                    <h3 className="text-xl text-white font-bold">Initializing High-Res Camera...</h3>
+                    <p className="text-slate-500 mt-4 text-sm px-8 text-center">Please allow camera permissions if prompted</p>
+                </div>
+            )}
             {/* Camera Feed */}
             <div className="relative w-full h-full md:w-auto md:h-auto md:max-w-4xl md:aspect-video bg-black md:rounded-2xl overflow-hidden shadow-2xl border-0 md:border border-slate-800 flex items-center justify-center opacity-100 visible">
                 <video
