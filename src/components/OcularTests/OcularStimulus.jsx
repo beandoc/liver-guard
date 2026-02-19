@@ -440,46 +440,48 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
 
             {/* Diagnostics & Initialization Overlay */}
             {!isDemo && (!liveGaze || (tracker && !tracker.isReady)) && (
-                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center z-[200] pointer-events-none px-6">
-                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl">
-                        <div className="flex justify-center mb-6">
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-[140] pointer-events-none px-6">
+                    <div className="bg-slate-950/80 backdrop-blur-2xl border border-white/10 p-10 rounded-[2.5rem] max-w-sm w-full text-center shadow-2xl">
+                        <div className="flex justify-center mb-8">
                             <div className="relative">
-                                <div className="w-16 h-16 rounded-full border-4 border-white/5 flex items-center justify-center">
-                                    <div className={`w-10 h-10 rounded-full border-4 border-t-blue-500 border-l-transparent border-r-transparent border-b-transparent animate-spin`}></div>
+                                <div className="w-24 h-24 rounded-full border-4 border-white/5 flex items-center justify-center">
+                                    <div className="w-16 h-16 rounded-full border-4 border-t-blue-500 border-l-transparent border-r-transparent border-b-transparent animate-spin"></div>
                                 </div>
                                 <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className={`w-3 h-3 rounded-full ${currentConfidence > 0 ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
+                                    <div className={`w-4 h-4 rounded-full ${currentConfidence > 0 ? 'bg-green-500' : 'bg-red-500'} animate-pulse shadow-[0_0_15px_rgba(34,197,94,0.5)]`}></div>
                                 </div>
                             </div>
                         </div>
 
-                        <h3 className="text-white font-bold text-xl mb-2">
-                            {currentConfidence > 0 ? "Tracking Face..." : "Finding Face..."}
+                        <h3 className="text-white font-black text-2xl mb-2 tracking-tight">
+                            {currentConfidence > 0 ? "FACE DETECTED" : "SEARCHING..."}
                         </h3>
 
-                        <div className="space-y-3 mb-6">
-                            <div className="flex justify-between items-center text-xs uppercase tracking-widest font-bold">
-                                <span className="text-slate-500">Camera</span>
+                        <div className="space-y-4 mb-8">
+                            <div className="flex justify-between items-center text-[10px] uppercase tracking-[0.2em] font-black">
+                                <span className="text-slate-500">Sensor Status</span>
                                 <span className={(videoElement || internalVideoRef.current) ? "text-green-500" : "text-yellow-500 animate-pulse"}>
-                                    {(videoElement || internalVideoRef.current) ? "READY" : "WAITING"}
+                                    {(videoElement || internalVideoRef.current) ? "ONLINE" : "OFFLINE"}
                                 </span>
                             </div>
-                            <div className="flex justify-between items-center text-xs uppercase tracking-widest font-bold">
-                                <span className="text-slate-500">AI Engine</span>
+                            <div className="flex justify-between items-center text-[10px] uppercase tracking-[0.2em] font-black">
+                                <span className="text-slate-500">AI Compute</span>
                                 <span className={(tracker && tracker.isReady) ? "text-green-500" : "text-yellow-500 animate-pulse"}>
-                                    {(tracker && tracker.isReady) ? "READY" : "LOADING..."}
+                                    {(tracker && tracker.isReady) ? "READY" : "BOOTING"}
                                 </span>
                             </div>
-                            <div className="flex justify-between items-center text-xs uppercase tracking-widest font-bold">
-                                <span className="text-slate-500">Distance</span>
-                                <span className={currentConfidence > 0 ? (distanceWarning ? "text-red-500 animate-bounce" : "text-green-500") : "text-slate-600"}>
-                                    {currentConfidence > 0 ? (distanceWarning ? "TOO FAR" : "OK") : "---"}
+                            <div className="flex justify-between items-center text-[10px] uppercase tracking-[0.2em] font-black">
+                                <span className="text-slate-500">Position Lock</span>
+                                <span className={currentConfidence > 0 ? (distanceWarning ? "text-red-500 animate-bounce" : "text-green-500") : "text-slate-700"}>
+                                    {currentConfidence > 0 ? (distanceWarning ? "DISTANCE ERROR" : "SECURED") : "WAITING"}
                                 </span>
                             </div>
                         </div>
 
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                            {distanceWarning ? "Please move closer to the camera." : "Please center your face and wait for the lock."}
+                        <p className="text-slate-400 text-sm leading-relaxed font-medium">
+                            {distanceWarning
+                                ? "Please move closer to the camera for an accurate biometric mapping."
+                                : "Position your face in the center of the frame and remain still."}
                         </p>
                     </div>
                 </div>
@@ -528,16 +530,15 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 </div>
             )}
 
-            {/* Exit Button - Triggers Abort Fullscreen */}
             {!isDemo && onExit && (
                 <button
                     onClick={() => setExitConfirm(true)}
-                    className="absolute top-4 left-40 z-[105] h-10 px-4 rounded-full bg-slate-800/80 border border-white/10 flex items-center gap-3 text-slate-400 hover:text-red-400 transition-all backdrop-blur-md active:scale-95 hover:bg-red-500/10 group"
+                    className="absolute top-6 left-6 z-[150] w-10 h-10 rounded-full bg-black/20 hover:bg-red-500/20 border border-white/10 flex items-center justify-center text-white/40 hover:text-red-400 transition-all backdrop-blur-sm active:scale-90"
+                    aria-label="Abort Test"
                 >
-                    <svg className="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                    <span className="text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">Abort test and return to menu</span>
                 </button>
             )}
 
