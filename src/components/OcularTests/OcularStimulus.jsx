@@ -313,6 +313,43 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
     // Render logic
     return (
         <div className="fixed inset-0 bg-black cursor-none touch-none overflow-hidden z-[100] select-none" style={{ touchAction: 'none' }}>
+            {/* Clinic Preview (Top Left) - Visual confirmation of Face Lock */}
+            {!isDemo && (
+                <div className={`absolute top-4 left-4 w-32 h-32 rounded-2xl overflow-hidden border-2 transition-all duration-500 z-[110] ${currentConfidence > 0.4 ? (distanceWarning ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]') : 'border-blue-500/50 shadow-lg'}`}>
+                    <video
+                        ref={internalVideoRef}
+                        className="w-full h-full object-cover mirror scale-x-[-1]"
+                        playsInline
+                        muted
+                    />
+                    {/* Face Lock Overlay */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 pointer-events-none">
+                        {currentConfidence > 0 ? (
+                            <div className="relative">
+                                {/* Scanning corners */}
+                                <div className={`absolute -inset-4 border-t-2 border-l-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
+                                <div className={`absolute -inset-4 bottom-auto left-auto border-t-2 border-r-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
+                                <div className={`absolute -inset-4 top-auto right-auto border-b-2 border-l-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
+                                <div className={`absolute -inset-4 top-auto left-auto border-b-2 border-r-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
+
+                                <div className={`text-[8px] font-bold uppercase tracking-widest ${distanceWarning ? 'text-red-500' : 'text-green-500'}`}>
+                                    {distanceWarning ? 'Too Far' : 'Locked'}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-[8px] text-blue-400 font-bold animate-pulse uppercase tracking-widest">Searching...</div>
+                        )}
+                    </div>
+                    {/* Signal Quality Bar (Bottom of PIP) */}
+                    <div className="absolute bottom-0 left-0 h-1 bg-white/10 w-full">
+                        <div
+                            className={`h-full transition-all duration-300 ${currentConfidence > 0.6 ? 'bg-green-500' : (currentConfidence > 0.3 ? 'bg-yellow-500' : 'bg-red-500')}`}
+                            style={{ width: `${currentConfidence * 100}%` }}
+                        ></div>
+                    </div>
+                </div>
+            )}
+
             {/* Target */}
             {targetPos.visible && (
                 <div
@@ -455,7 +492,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
             {!isDemo && onExit && (
                 <button
                     onClick={onExit}
-                    className="absolute top-4 left-4 z-50 w-10 h-10 rounded-full bg-slate-800/80 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors backdrop-blur-md active:scale-95 hover:bg-red-500/20 hover:border-red-500/30 group"
+                    className="absolute top-4 left-40 z-50 w-10 h-10 rounded-full bg-slate-800/80 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors backdrop-blur-md active:scale-95 hover:bg-red-500/20 hover:border-red-500/30 group"
                 >
                     <svg className="w-5 h-5 group-hover:stroke-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -463,13 +500,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 </button>
             )}
 
-            {/* Hidden Video for Tracking */}
-            <video
-                ref={internalVideoRef}
-                className="hidden"
-                playsInline
-                muted
-            />
+
         </div>
     );
 };
