@@ -57,10 +57,13 @@ export const TEST_CONFIG = {
     },
     AST: {
         id: 'ast',
-        duration: 45000, // Increased to 45s
-        targetSize: 20,
-        jumpInterval: 2500,
-        type: 'antisaccade'
+        duration: 48000,
+        targetSize: 22,
+        gapDuration: 200,        // ms fixation-OFF before cue
+        cueDuration: 1000,       // ms cue visible
+        itiDuration: 1000,       // ms inter-trial blank
+        targetEccentricity: 25,  // % from center
+        type: 'antisaccade_gap'
     },
     SPT: {
         id: 'spt',

@@ -148,8 +148,9 @@ const OcularMenuContent = ({ onExit, onUpdate, lang = 'en', videoElement, isCame
     if (viewMode === 'intro') {
         return (
             <div className="glass-panel p-6 md:p-8 max-w-2xl w-full animate-fadeIn relative mx-auto my-4 md:my-8 flex flex-col items-center text-center shadow-2xl shadow-indigo-900/20 border border-white/10">
-                <button onClick={backToMenu} className="absolute top-4 md:top-6 left-4 md:left-6 text-slate-400 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-white/10 group touch-manipulation">
+                <button onClick={backToMenu} className="absolute top-4 md:top-6 left-4 md:left-6 flex items-center gap-2 text-slate-400 hover:text-red-400 transition-colors bg-white/5 px-4 py-2 rounded-full hover:bg-red-500/10 group touch-manipulation border border-white/5 hover:border-red-500/20">
                     <span className="group-hover:-translate-x-1 transition-transform block">←</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline-block">Abort to Menu</span>
                 </button>
 
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20 text-white font-mono font-bold text-xl ring-4 ring-black/20">
@@ -375,17 +376,27 @@ const OcularMenu = (props) => {
     const [isCameraReady, setIsCameraReady] = useState(false);
 
     const startCamera = async () => {
-        if (streamRef.current) return; // Already active
+        if (streamRef.current) return;
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+                video: {
+                    facingMode: 'user',
+                    width: { ideal: 1280, min: 640 },
+                    height: { ideal: 720, min: 480 },
+                    frameRate: { ideal: 60, min: 30 }
+                }
             });
             streamRef.current = stream;
 
+            // Log exact hardware performance for diagnostic review
+            const track = stream.getVideoTracks()[0];
+            const settings = track.getSettings();
+            console.log(`[Camera] Hardware Linked: ${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
+            window.__cameraFPS = settings.frameRate || 30;
+
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
-                // Wait for metadata to load
                 await new Promise((resolve) => {
                     videoRef.current.onloadedmetadata = () => resolve();
                 });
@@ -393,7 +404,7 @@ const OcularMenu = (props) => {
                 setIsCameraReady(true);
             }
         } catch (err) {
-            console.error("Camera access denied:", err);
+            console.error("Camera access failed:", err);
         }
     };
 

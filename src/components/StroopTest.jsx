@@ -29,6 +29,7 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
     const [currentStimulus, setCurrentStimulus] = useState(null);
     const [options, setOptions] = useState([]);
     const [startTime, setStartTime] = useState(0);
+    const [exitConfirm, setExitConfirm] = useState(false);
     const pendingStageRef = useRef(null); // used to trigger Part II after state flush
 
     const [results, setResults] = useState({
@@ -83,7 +84,7 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
             pendingStageRef.current = null;
             nextTrial(stageName, 0, 0);
         }
-    }, [correctCount]); // correctCount will be 0 after startStage resets it
+    }, [correctCount, stage]); // Include stage to trigger when switching from INTRO to OFF_STAGE or between stages
 
     const startStage = (stageName) => {
         setStage(stageName);
@@ -123,11 +124,14 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         return (
             <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', position: 'relative' }}>
                 <button
-                    onClick={onExit}
-                    style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', cursor: 'pointer', fontSize: 20, transition: 'all 0.2s', zIndex: 10 }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
-                >✕</button>
+                    onClick={() => setExitConfirm(true)}
+                    style={{ position: 'absolute', top: 24, left: 24, height: 40, padding: '0 16px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: 10, color: '#94a3b8', cursor: 'pointer', transition: 'all 0.2s', zIndex: 10 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+                >
+                    <span style={{ fontSize: 18 }}>✕</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Abort test and return to menu</span>
+                </button>
                 <div className="glass-panel p-8 max-w-md w-full text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24 }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(79,70,229,0.1)', border: '1px solid rgba(79,70,229,0.25)', borderRadius: 9999, padding: '4px 14px', marginBottom: 24 }}>
                         <span style={{ fontSize: '11px', fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Stroop Color Test</span>
@@ -154,11 +158,14 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         return (
             <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', position: 'relative' }}>
                 <button
-                    onClick={onExit}
-                    style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', cursor: 'pointer', fontSize: 20, transition: 'all 0.2s', zIndex: 10 }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
-                >✕</button>
+                    onClick={() => setExitConfirm(true)}
+                    style={{ position: 'absolute', top: 24, left: 24, height: 40, padding: '0 16px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: 10, color: '#94a3b8', cursor: 'pointer', transition: 'all 0.2s', zIndex: 10 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+                >
+                    <span style={{ fontSize: 18 }}>✕</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Abort test and return to menu</span>
+                </button>
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: '40px', maxWidth: 440, width: '100%', textAlign: 'center' }}>
                     <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '1.5rem' }}>✓</div>
                     <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white', marginBottom: 8, letterSpacing: '-0.02em' }}>{t.part1_header} Complete</h2>
@@ -280,6 +287,7 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
                     <button
                         onClick={() => {
                             console.log("Clinical Data Submitted:", { results, demographics, heGrade, date: new Date().toISOString() });
+                            if (onComplete) onComplete(results);
                             alert("Data Saved for Training.");
                             onExit();
                         }}
@@ -297,11 +305,12 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
             <div className="absolute top-4 w-full flex justify-between items-center px-4 md:px-6 text-slate-500 text-sm font-semibold tracking-widest uppercase z-50">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={onExit}
-                        className="w-9 h-9 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors backdrop-blur-md"
-                        aria-label="Exit Test"
+                        onClick={() => setExitConfirm(true)}
+                        className="h-9 px-4 rounded-full bg-black/60 border border-white/10 flex items-center gap-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all backdrop-blur-md group"
+                        aria-label="Abort test and return to menu"
                     >
-                        ✕
+                        <span className="text-lg group-hover:rotate-90 transition-transform">✕</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">Abort test and return to menu</span>
                     </button>
                     <span className="text-xs">{stage === STAGES.OFF_STAGE ? t.part1_header : t.part2_header}</span>
                 </div>
@@ -361,6 +370,37 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Fullscreen Abort Confirmation (D6) */}
+            {exitConfirm && (
+                <div className="fixed inset-0 z-[1000] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn" style={{ cursor: 'default' }}>
+                    <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-[2rem] text-center shadow-2xl">
+                        <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
+                                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-bold text-white mb-3">Abort Stroop?</h2>
+                        <p className="text-slate-400 mb-8 text-sm leading-relaxed">
+                            Are you sure you want to end this session? All progress for this specific test will be lost.
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={onExit}
+                                className="w-full py-4 bg-red-500 hover:bg-red-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/20 active:scale-95 cursor-pointer"
+                            >
+                                Yes, End Test
+                            </button>
+                            <button
+                                onClick={() => setExitConfirm(false)}
+                                className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
+                            >
+                                No, Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

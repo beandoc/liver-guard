@@ -6,6 +6,41 @@ const OcularResults = ({ testId, results, onRetry, onExit, onNext, lang = 'en' }
     const t = OCULAR_TRANSLATIONS[lang] || OCULAR_TRANSLATIONS.en;
     const testInfo = OCULAR_TESTS[testId] || {};
 
+    // Handle uncalibrated state (P1 — calibration guard)
+    if (results.requiresCalibration || results.score === null) {
+        return (
+            <div style={{
+                minHeight: '100vh', width: '100%', background: '#030712', color: 'white',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: 32, textAlign: 'center'
+            }}>
+                <div style={{
+                    width: 80, height: 80, borderRadius: '50%',
+                    background: 'rgba(251,191,36,0.1)', border: '2px solid rgba(251,191,36,0.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: 24, fontSize: '2rem'
+                }}>⚠️</div>
+                <h2 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 8, letterSpacing: '-0.02em' }}>Calibration Required</h2>
+                <p style={{ color: '#64748b', fontSize: '0.9rem', maxWidth: 400, lineHeight: 1.6, marginBottom: 32 }}>
+                    This test was run without a valid 5-point gaze calibration. Results cannot be scored accurately.
+                    Please calibrate the eye tracker before retrying.
+                </p>
+                <div style={{ display: 'flex', gap: 12 }}>
+                    <button onClick={onRetry} style={{
+                        padding: '14px 28px', background: '#4f46e5', border: 'none', borderRadius: 14,
+                        color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+                        boxShadow: '0 0 30px -8px #4f46e5'
+                    }}>Calibrate & Retry</button>
+                    <button onClick={onExit} style={{
+                        padding: '14px 28px', background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14,
+                        color: '#64748b', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer'
+                    }}>Back to Menu</button>
+                </div>
+            </div>
+        );
+    }
+
     const score = results.score ?? 0;
     const isGood = score >= 80;
     const isWarn = score >= 60 && score < 80;
@@ -171,7 +206,7 @@ const OcularResults = ({ testId, results, onRetry, onExit, onNext, lang = 'en' }
                     {/* Classification card */}
                     <div style={{ background: classBg, border: `1px solid ${classBorder}`, borderRadius: 18, padding: '20px 24px', position: 'relative', overflow: 'hidden' }}>
                         <div style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, background: `radial-gradient(circle, ${accentGlow} 0%, transparent 70%)`, borderRadius: '50%' }} />
-                        <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 8 }}>Clinical Prediction</div>
+                        <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 8 }}>Screening Indicator</div>
                         <div style={{ fontSize: '1.3rem', fontWeight: 800, color: classColor, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
                             <span style={{ fontSize: '1.1rem' }}>{isBad ? '⚠️' : isWarn ? '⚡' : '✓'}</span>
                             {classification}
@@ -245,9 +280,20 @@ const OcularResults = ({ testId, results, onRetry, onExit, onNext, lang = 'en' }
                         )}
                     </div>
 
-                    <p style={{ fontSize: '9px', color: '#1e293b', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '0.05em', lineHeight: 1.6 }}>
-                        CLINICIAN NOTE · Values below 40% accuracy correlate with PHES Grade 1+ Encephalopathy
-                    </p>
+                    {/* Visible Disclaimer (P0) */}
+                    <div style={{
+                        background: 'rgba(251,191,36,0.06)',
+                        border: '1px solid rgba(251,191,36,0.2)',
+                        borderRadius: 14, padding: '14px 18px', marginTop: 4
+                    }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#fbbf24', marginBottom: 6, letterSpacing: '0.05em' }}>
+                            ⚠️ RESEARCH USE ONLY
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.7, margin: 0, fontFamily: 'inherit' }}>
+                            This screening tool has not been validated as a medical device. Results are indicative only and must not replace
+                            clinical evaluation by a qualified hepatologist. Low scores should prompt referral for formal PHES assessment.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

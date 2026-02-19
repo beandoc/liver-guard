@@ -19,6 +19,25 @@ export class IrisTracker {
 
         this.calibrationPoints = [];
         this.isCalibrated = false;
+
+        // --- ARKit Native Bridge (P3 Phase 4) ---
+        // When running inside a native iOS WKWebView, ARKit pushes
+        // gaze data at 60fps via window.__arkitGaze().
+        this._arkitLatestFrame = null;
+        this._setupARKitBridge();
+    }
+
+    _setupARKitBridge() {
+        if (typeof window !== 'undefined') {
+            window.__arkitGaze = (data) => {
+                this._arkitLatestFrame = data;
+                this._arkitLatestFrame._receivedAt = performance.now();
+            };
+            // Detect if running in native WKWebView
+            if (window.webkit && window.webkit.messageHandlers) {
+                console.log('[IrisTracker] ARKit bridge registered (Native iOS detected)');
+            }
+        }
     }
 
     /**
@@ -99,6 +118,27 @@ export class IrisTracker {
      * @returns {Object|null}
      */
     async track(videoElement) {
+        // PRIORITY 1: Use ARKit data if available (native iOS WKWebView)
+        if (this._arkitLatestFrame &&
+            (performance.now() - this._arkitLatestFrame._receivedAt) < 50) {
+
+            const d = this._arkitLatestFrame;
+            return {
+                left: { x: (d.leftEye?.lookRight || 0) * 100, y: (d.leftEye?.lookUp || 0) * 100 },
+                right: { x: (d.rightEye?.lookRight || 0) * 100, y: (d.rightEye?.lookUp || 0) * 100 },
+                avg: { x: d.gaze?.x ?? 50, y: d.gaze?.y ?? 50 },
+                vergenceX: ((d.leftEye?.lookRight || 0) - (d.rightEye?.lookRight || 0)) * 100,
+                vergenceY: ((d.leftEye?.lookUp || 0) - (d.rightEye?.lookUp || 0)) * 100,
+                faceZ: 0.25, // ARKit provides real depth; normalized proxy
+                faceCenter: d.gaze || { x: 50, y: 50 },
+                isBlinking: d.isBlinking || false,
+                confidence: d.confidence ?? 1.0,
+                frameTimestamp: d.timestamp || performance.now(),
+                source: 'arkit'
+            };
+        }
+
+        // PRIORITY 2: MediaPipe fallback (web browser)
         if (!this.faceMesh || !this.isReady) return null;
         if (!videoElement || videoElement.readyState < 2) return null;
 
@@ -170,9 +210,15 @@ export class IrisTracker {
                 // Far (0.15): Noisier -> Smooth more (Lower Q, Higher R).
                 // Close (0.35): Clearer -> Responsive (Higher Q, Lower R).
                 const distFactor = Math.min(1.5, Math.max(0.5, faceWidth / 0.25));
-                // Enhanced Smoothing (D4): Higher R (measurement noise) = more smoothing
-                const newQ = 0.005 * distFactor; // Reduced process noise for more stability
-                const newR = 5.0 / distFactor; // Significantly increased measurement noise floor
+
+                // --- 60fps-tuned Clinical Parameters ---
+                // Q (process noise): Increased to track fast 400-600 deg/s saccades
+                // R (measurement noise): Reduced to prevent blurring of fast signals
+                const fps = window.__cameraFPS || 30;
+                const fpsScale = fps / 30;
+
+                const newQ = 0.02 * distFactor * fpsScale;
+                const newR = 0.8 / distFactor;
 
                 this.leftKalman.setNoise(newQ, newR);
                 this.rightKalman.setNoise(newQ, newR);
@@ -213,15 +259,18 @@ export class IrisTracker {
                 return {
                     left: smoothLeft,
                     right: smoothRight,
-                    // Avg is the primary metric for calibration
                     avg: {
                         x: (smoothLeft.x + smoothRight.x) / 2,
                         y: (smoothLeft.y + smoothRight.y) / 2
                     },
-                    faceZ, // Actually Face Width, serves as Z-proxy (Large = Close)
+                    // NEW: Binocular Vergence (Biomarker for MHE)
+                    vergenceX: smoothLeft.x - smoothRight.x,
+                    vergenceY: smoothLeft.y - smoothRight.y,
+                    faceZ,
                     faceCenter,
                     isBlinking,
-                    confidence
+                    confidence,
+                    frameTimestamp: performance.now()
                 };
             }
             return null;

@@ -79,6 +79,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
 
     // Live Gaze State
     const [liveGaze, setLiveGaze] = useState(null);
+    const [exitConfirm, setExitConfirm] = useState(false);
     const [headWarning, setHeadWarning] = useState(false);
     const [isTooDark, setIsTooDark] = useState(false);
     const [postureWarning, setPostureWarning] = useState('');
@@ -149,7 +150,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
         let memoryX = 50;
 
         const animate = () => {
-            const now = Date.now();
+            const now = performance.now();
 
             // Wait for lock before starting clock
             if (!startTimeRef.current) {
@@ -181,15 +182,19 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                     if (isDemo) instruction = t.lookDot;
                 }
             }
-            else if (config.type === 'antisaccade') {
-                if (now - lastEventTime > config.jumpInterval) {
-                    const side = Math.random() > 0.5 ? 20 : 80;
-                    newState = { x: side, y: 50, visible: true, color: '#f87171' }; // Red Cue
-                    lastEventTime = now;
+            else if (config.type === 'antisaccade_gap') {
+                const cycleTime = config.gapDuration + config.cueDuration + config.itiDuration;
+                const trialOffset = elapsed % cycleTime;
+
+                if (trialOffset < config.itiDuration) {
+                    newState = { x: 50, y: 50, visible: false };
+                } else if (trialOffset < config.itiDuration + config.gapDuration) {
+                    newState = { x: 50, y: 50, visible: true, color: '#ffffff', isFixation: true };
+                } else {
+                    const trialNumber = Math.floor(elapsed / cycleTime);
+                    const side = (trialNumber % 4 < 2) ? config.targetEccentricity : (100 - config.targetEccentricity);
+                    newState = { x: side, y: 50, visible: true, color: '#f87171', isFixation: false, correctX: 100 - side };
                     if (isDemo) instruction = side < 50 ? t.lookRight : t.lookLeft;
-                }
-                else if (now - lastEventTime > 1000 && newState.visible) {
-                    newState.visible = false;
                 }
             }
             else if (config.type === 'memory_sequence') {
@@ -227,7 +232,8 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
             }
 
             // --- 2. Update Visuals ---
-            if (newState.x !== targetStateRef.current.x || newState.y !== targetStateRef.current.y || newState.visible !== targetStateRef.current.visible) {
+            if (newState.x !== targetStateRef.current.x || newState.y !== targetStateRef.current.y || newState.visible !== targetStateRef.current.visible || newState.color !== targetStateRef.current.color) {
+                newState.timestamp = performance.now();
                 setTargetPos(newState);
                 if (instruction) setDemoInstruction(instruction);
                 targetStateRef.current = newState;
@@ -271,7 +277,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                                 lockCounter++;
                                 if (lockCounter >= signalLockFrames) {
                                     console.log('[OcularStimulus] Signal Locked. Starting test.');
-                                    startTimeRef.current = Date.now();
+                                    startTimeRef.current = performance.now();
                                     lastEventTime = startTimeRef.current;
                                 }
                             } else {
@@ -308,16 +314,19 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                         lastFaceZRef.current = pos.faceZ;
 
                         gazeDataRef.current.push({
-                            time: Date.now(),
+                            time: performance.now(),
                             eyeX: pos.avg.x,
                             eyeY: pos.avg.y,
                             leftEye: pos.left,
                             rightEye: pos.right,
+                            vergenceX: pos.vergenceX,
+                            vergenceY: pos.vergenceY,
                             isBlinking: pos.isBlinking,
                             confidence: pos.confidence,
                             targetX: targetStateRef.current.x,
                             targetY: targetStateRef.current.y,
-                            targetVisible: targetStateRef.current.visible
+                            targetVisible: targetStateRef.current.visible,
+                            targetTimestamp: targetStateRef.current.timestamp
                         });
                     } else {
                         // We reset live gaze on failure so user knows it's not locked
@@ -519,16 +528,48 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 </div>
             )}
 
-            {/* Exit Button (D6) */}
+            {/* Exit Button - Triggers Abort Fullscreen */}
             {!isDemo && onExit && (
                 <button
-                    onClick={onExit}
-                    className="absolute top-4 left-40 z-50 w-10 h-10 rounded-full bg-slate-800/80 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors backdrop-blur-md active:scale-95 hover:bg-red-500/20 hover:border-red-500/30 group"
+                    onClick={() => setExitConfirm(true)}
+                    className="absolute top-4 left-40 z-[105] h-10 px-4 rounded-full bg-slate-800/80 border border-white/10 flex items-center gap-3 text-slate-400 hover:text-red-400 transition-all backdrop-blur-md active:scale-95 hover:bg-red-500/10 group"
                 >
-                    <svg className="w-5 h-5 group-hover:stroke-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
+                    <span className="text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">Abort test and return to menu</span>
                 </button>
+            )}
+
+            {/* Fullscreen Abort Confirmation (D6) */}
+            {exitConfirm && (
+                <div className="fixed inset-0 z-[2000] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn" style={{ cursor: 'default' }}>
+                    <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-[2rem] text-center shadow-2xl">
+                        <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
+                                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-bold text-white mb-3">Abort Ocular Protocol?</h2>
+                        <p className="text-slate-400 mb-8 text-sm leading-relaxed">
+                            Are you sure you want to end this session? All ocular-motor tracking data for this specific test will be lost.
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={onExit}
+                                className="w-full py-4 bg-red-500 hover:bg-red-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/20 active:scale-95 cursor-pointer"
+                            >
+                                Yes, End Test
+                            </button>
+                            <button
+                                onClick={() => setExitConfirm(false)}
+                                className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
+                            >
+                                No, Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
 

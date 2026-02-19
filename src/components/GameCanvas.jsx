@@ -121,24 +121,48 @@ const GameCanvas = ({ onComplete, onExit, testType = 'A', totalPoints = 25 }) =>
         </div>
       )}
 
-      {/* Exit Button (D6) */}
+      {/* Exit Button - Triggers Abort Fullscreen */}
       <div className="absolute top-6 left-6 z-50">
-        {!exitConfirm ? (
-          <button
-            onClick={() => setExitConfirm(true)}
-            className="w-10 h-10 rounded-full bg-slate-800/80 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors backdrop-blur-md"
-            aria-label="Exit Test"
-          >
-            ✕
-          </button>
-        ) : (
-          <div className="flex items-center gap-2 bg-red-950/80 border border-red-500/30 p-1 pl-4 rounded-full backdrop-blur-md animate-scaleIn">
-            <span className="text-xs font-bold text-red-200">Abort?</span>
-            <button onClick={onExit} className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold">Yes</button>
-            <button onClick={() => setExitConfirm(false)} className="px-3 py-1 rounded-full text-xs font-bold text-slate-300">No</button>
-          </div>
-        )}
+        <button
+          onClick={() => setExitConfirm(true)}
+          className="h-10 px-4 rounded-full bg-slate-800/80 border border-white/10 flex items-center gap-3 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all backdrop-blur-md group"
+          aria-label="Abort Test"
+        >
+          <span className="text-xl leading-none group-hover:scale-110 transition-transform">✕</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline-block">Abort test and return to menu</span>
+        </button>
       </div>
+
+      {/* Fullscreen Abort Confirmation (D6) */}
+      {exitConfirm && (
+        <div className="fixed inset-0 z-[1000] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
+          <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-[2rem] text-center shadow-2xl">
+            <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-3">Abort Protocol?</h2>
+            <p className="text-slate-400 mb-8 text-sm leading-relaxed">
+              Are you sure you want to end this session? All progress for this specific test will be lost.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={onExit}
+                className="w-full py-4 bg-red-500 hover:bg-red-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/20 active:scale-95"
+              >
+                Yes, End Test
+              </button>
+              <button
+                onClick={() => setExitConfirm(false)}
+                className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all active:scale-95"
+              >
+                No, Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Target Progress Indicator */}
       <div className="absolute top-1/2 left-0 w-full text-center pointer-events-none -translate-y-1/2 z-0">
