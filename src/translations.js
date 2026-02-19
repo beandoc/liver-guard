@@ -65,7 +65,25 @@ export const TRANSLATIONS = {
         // Menu Labels
         detect_minimal: "For Minimal / Covert HE",
         detect_overt: "For Overt HE (Grade 1)",
-        detect_executive: "Executive Function & Set Shifting"
+        detect_executive: "Executive Function & Set Shifting",
+
+        // Demographics
+        demographics_title: "Patient Demographics",
+        age: "Age (Years)",
+        gender: "Gender",
+        education: "Education (Years)",
+        education_grade: "Education Grade",
+        edu_none: "No Formal Education",
+        edu_primary: "Primary",
+        edu_secondary: "Secondary",
+        edu_graduate: "Graduate",
+        edu_postgrad: "Post Graduate",
+        submit_continue: "Submit & View Results",
+        physician_grading: "Physician Grading (HE Grade)",
+        submit_data: "Submit Clinical Data",
+        gender_male: "Male",
+        gender_female: "Female",
+        gender_other: "Other"
     },
     hi: {
         title: "HE कॉग्निटिव सुइट",
@@ -133,7 +151,25 @@ export const TRANSLATIONS = {
         // Menu Labels
         detect_minimal: "न्यूनतम / गुप्त HE के लिए (Minimal/Covert)",
         detect_overt: "स्पष्ट HE (ग्रेड 1) के लिए (Overt Grade 1)",
-        detect_executive: "कार्यकारी कार्य और सेट स्थानांतरण (Executive Function)"
+        detect_executive: "कार्यकारी कार्य और सेट स्थानांतरण (Executive Function)",
+
+        // Demographics
+        demographics_title: "रोगी विवरण (Demographics)",
+        age: "आयु (वर्ष)",
+        gender: "लिंग",
+        education: "शिक्षा (वर्ष)",
+        education_grade: "शिक्षा ग्रेड",
+        edu_none: "कोई औपचारिक शिक्षा नहीं",
+        edu_primary: "प्राथमिक (Primary)",
+        edu_secondary: "माध्यमिक (Secondary)",
+        edu_graduate: "स्नातक (Graduate)",
+        edu_postgrad: "स्नातकोत्तर (Post Graduate)",
+        submit_continue: "जमा करें और परिणाम देखें",
+        physician_grading: "चिकित्सक ग्रेडिंग (HE Grade)",
+        submit_data: "नैदानिक डेटा जमा करें",
+        gender_male: "पुरुष",
+        gender_female: "महिला",
+        gender_other: "अन्य"
     },
     mr: {
         title: "HE कॉग्निटिव सुइट",
@@ -201,6 +237,24 @@ export const TRANSLATIONS = {
         // Menu Labels
         detect_minimal: "किमान / सुप्त HE साठी (Minimal/Covert)",
         detect_overt: "स्पष्ट HE (ग्रेड 1) साठी (Overt Grade 1)",
-        detect_executive: "कार्यकारी कार्य आणि सेट शिफ्टिंग (Executive Function)"
+        detect_executive: "कार्यकारी कार्य आणि सेट शिफ्टिंग (Executive Function)",
+
+        // Demographics
+        demographics_title: "रुग्णाची माहिती (Demographics)",
+        age: "वय (वर्षे)",
+        gender: "लिंग",
+        education: "शिक्षण (वर्षे)",
+        education_grade: "शिक्षण श्रेणी",
+        edu_none: "औपचारिक शिक्षण नाही",
+        edu_primary: "प्राथमिक (Primary)",
+        edu_secondary: "माध्यमिक (Secondary)",
+        edu_graduate: "पदवीधर (Graduate)",
+        edu_postgrad: "पदव्युत्तर (Post Graduate)",
+        submit_continue: "सबमिट करा आणि निकाल पहा",
+        physician_grading: "डॉक्टर ग्रेडिंग (HE Grade)",
+        submit_data: "क्लिनिकल डेटा सबमिट करा",
+        gender_male: "पुरुष",
+        gender_female: "स्त्री",
+        gender_other: "इतर"
     }
 };

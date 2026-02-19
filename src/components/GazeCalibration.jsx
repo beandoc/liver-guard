@@ -11,7 +11,7 @@ const CALIBRATION_POINTS = [
 ];
 
 // Phase flow: 'intro' -> 'engine_loading' -> 'camera_init' -> 'detecting' -> 'calibration' -> 'complete' | 'error'
-const GazeCalibration = ({ onComplete, onCancel }) => {
+const GazeCalibration = ({ onComplete, onCancel, videoElement, isCameraReady }) => {
     const [phase, setPhase] = useState('intro');
     const [statusMsg, setStatusMsg] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
@@ -71,8 +71,13 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
 
             if (ok) {
                 setEngineReady(true);
+                // If camera is already ready (from parent), auto-transition or just mark ready
+                if (isCameraReady) {
+                    setStatusMsg('AI engine ready. & Camera active.');
+                } else {
+                    setStatusMsg('AI engine ready.');
+                }
                 setPhase('intro');
-                setStatusMsg('AI engine ready.');
             } else {
                 setErrorMsg('AI engine failed to initialize. This may be a browser compatibility issue. Try Chrome or Edge.');
                 setPhase('error');
@@ -84,18 +89,28 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
         return () => {
             cancelled = true;
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(t => t.stop());
-            }
+            // Don't stop tracks here, parent owns them
         };
-    }, []);
+    }, [isCameraReady]);
 
     const startCamera = async () => {
         if (!engineReady) return;
 
-        // Critical Fix: Do NOT set phase to 'camera_init' immediately if it hides the video element.
-        // We keep the structure stable.
         setPhase('camera_init');
+
+        // IF shared video element is provided and ready, use it
+        if (videoElement && isCameraReady) {
+            // Mirror the stream to local video for display
+            if (videoRef.current && videoElement.srcObject) {
+                videoRef.current.srcObject = videoElement.srcObject;
+                await videoRef.current.play();
+                setPhase('detecting');
+                setStatusMsg('Searching for face...');
+                startTrackingLoop();
+                return;
+            }
+        }
+
         setStatusMsg('Requesting camera access...');
 
         try {
@@ -132,7 +147,7 @@ const GazeCalibration = ({ onComplete, onCancel }) => {
 
     const startTrackingLoop = useCallback(() => {
         const run = async () => {
-            const video = videoRef.current;
+            const video = videoElement || videoRef.current; // Use shared source if available for tracking
             const tracker = trackerRef.current;
 
             if (video && tracker && video.readyState >= 2) {

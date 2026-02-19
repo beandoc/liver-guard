@@ -5,14 +5,20 @@ import OcularStimulus from './OcularStimulus';
 import GazeCalibration from '../GazeCalibration';
 import OcularResults from './OcularResults';
 import { analyzeTestResults } from './OcularAnalyzer';
+import { IrisTracker } from '../../utils/IrisTracker';
 
-const OcularMenu = ({ onExit, lang = 'en' }) => {
+const OcularMenuContent = ({ onExit, lang = 'en', videoElement, isCameraReady, startCamera }) => {
     const [selectedTest, setSelectedTest] = useState(null);
     const [viewMode, setViewMode] = useState('menu'); // 'menu', 'intro', 'test', 'demo', 'calibration', 'results'
     const [testResults, setTestResults] = useState(null);
     const [sessionResults, setSessionResults] = useState({}); // { testId: results }
     const [isCalibrated, setIsCalibrated] = useState(false);
-    const trackerRef = useRef(null); // Persist the IrisTracker instance
+    const trackerRef = useRef(null);
+
+    // Lazy initialize tracker if not set by calibration
+    if (!trackerRef.current) {
+        trackerRef.current = new IrisTracker();
+    }
 
     const t = OCULAR_TRANSLATIONS[lang] || OCULAR_TRANSLATIONS.en;
 
@@ -26,13 +32,19 @@ const OcularMenu = ({ onExit, lang = 'en' }) => {
         }
     };
 
-    const startTest = () => {
-        // Here we could enforce calibration check
+
+
+    const startTest = async () => {
+        // Ensure camera is running BEFORE starting test
+        if (startCamera) await startCamera();
         setViewMode('test');
     };
 
     const startDemo = () => setViewMode('demo');
-    const startCalibration = () => setViewMode('calibration');
+    const startCalibration = () => {
+        if (startCamera) startCamera();
+        setViewMode('calibration');
+    };
 
     const handleTestComplete = (rawGazeData) => {
         // Analyze Here with calibration data from tracker
@@ -56,12 +68,17 @@ const OcularMenu = ({ onExit, lang = 'en' }) => {
     if (viewMode === 'calibration') {
         return (
             <GazeCalibration
+                videoElement={videoElement}
+                isCameraReady={isCameraReady}
                 onComplete={(tracker) => {
                     trackerRef.current = tracker;
                     setIsCalibrated(true);
                     setViewMode('menu');
                 }}
-                onCancel={() => setViewMode('menu')}
+                onCancel={() => {
+                    // Don't stop camera on cancel, might want to try again
+                    setViewMode('menu');
+                }}
             />
         );
     }
@@ -99,6 +116,8 @@ const OcularMenu = ({ onExit, lang = 'en' }) => {
                     testId={selectedTest.id}
                     isDemo={viewMode === 'demo'}
                     tracker={trackerRef.current} // Pass the hybrid tracker
+                    videoElement={videoElement} // Shared video stream
+                    lang={lang}
                     onComplete={viewMode === 'demo' ? () => setViewMode('intro') : handleTestComplete}
                     onExit={viewMode === 'demo' ? () => setViewMode('intro') : backToMenu}
                 />
@@ -336,6 +355,67 @@ const OcularMenu = ({ onExit, lang = 'en' }) => {
                 </div>
             </div>
         </div>
+    );
+};
+
+const OcularMenu = (props) => {
+    const videoRef = useRef(null);
+    const streamRef = useRef(null);
+    const [isCameraReady, setIsCameraReady] = useState(false);
+
+    const startCamera = async () => {
+        if (streamRef.current) return; // Already active
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+            });
+            streamRef.current = stream;
+
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                // Wait for metadata to load
+                await new Promise((resolve) => {
+                    videoRef.current.onloadedmetadata = () => resolve();
+                });
+                await videoRef.current.play();
+                setIsCameraReady(true);
+            }
+        } catch (err) {
+            console.error("Camera access denied:", err);
+        }
+    };
+
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(t => t.stop());
+            streamRef.current = null;
+        }
+        setIsCameraReady(false);
+    };
+
+    // Cleanup on unmount
+    React.useEffect(() => {
+        return () => stopCamera();
+    }, []);
+
+    return (
+        <>
+            <OcularMenuContent
+                {...props}
+                videoElement={videoRef.current}
+                isCameraReady={isCameraReady}
+                startCamera={startCamera}
+            />
+            {/* Shared hidden video sink for persistent stream */}
+            <video
+                ref={videoRef}
+                className="hidden"
+                playsInline
+                muted
+                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 }}
+            />
+        </>
     );
 };
 

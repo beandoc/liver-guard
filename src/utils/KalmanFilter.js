@@ -101,6 +101,19 @@ export class KalmanFilter2D {
         this.P[1][1] *= (1 - K[1][1]);
     }
 
+    setNoise(processNoise, measurementNoise) {
+        // Dynamically update noise covariance matrices
+        // Q: Process Noise (Trust in Model/Velocity) - Lower = More Smooth/Laggy
+        this.Q[0][0] = processNoise;
+        this.Q[1][1] = processNoise;
+        this.Q[2][2] = processNoise;
+        this.Q[3][3] = processNoise;
+
+        // R: Measurement Noise (Trust in Input) - Higher = More Smooth/Laggy
+        this.R[0][0] = measurementNoise;
+        this.R[1][1] = measurementNoise;
+    }
+
     getPoint() {
         return { x: this.x[0], y: this.x[1] };
     }

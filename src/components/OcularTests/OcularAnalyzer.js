@@ -21,7 +21,7 @@ export const analyzeTestResults = (testId, rawData, calibrationData) => {
 
     // 3. Calculate actual data quality (D4/D6)
     // Valid = not blinking and tracking engine returned valid center
-    const validFrames = rawData.filter(d => !d.isBlinking && d.eyeX !== undefined).length;
+    const validFrames = rawData.filter(d => !d.isBlinking && d.eyeX !== undefined && (d.confidence === undefined || d.confidence > 0.3)).length;
     const dataQuality = Math.round((validFrames / rawData.length) * 100);
 
     let results;
@@ -112,27 +112,30 @@ const getCalibratedGaze = (pt, m) => {
  * Uses Centroid-based stability to ignore constant calibration offsets.
  */
 const analyzeFixation = (data, m) => {
-    const gazes = data.map(pt => getCalibratedGaze(pt, m));
+    // Filter out very low confidence for centroid
+    const validData = data.filter(d => !d.isBlinking && (d.confidence === undefined || d.confidence > 0.3));
+    if (validData.length < 10) return { score: 0, metric: 'Low Quality Data', status: 'Inconclusive' };
 
-    // 1. Calculate Centroid (Robust Mean) to remove calibration offset error
-    const count = gazes.length;
-    const centroidX = gazes.reduce((sum, p) => sum + p.x, 0) / count;
-    const centroidY = gazes.reduce((sum, p) => sum + p.y, 0) / count;
+    const gazes = validData.map(pt => ({
+        ...getCalibratedGaze(pt, m),
+        conf: pt.confidence !== undefined ? pt.confidence : 1.0
+    }));
+
+    // 1. Calculate Weighted Centroid (Robust Mean)
+    const totalConf = gazes.reduce((sum, p) => sum + p.conf, 0);
+    const centroidX = gazes.reduce((sum, p) => sum + p.x * p.conf, 0) / (totalConf || 1);
+    const centroidY = gazes.reduce((sum, p) => sum + p.y * p.conf, 0) / (totalConf || 1);
 
     // 2. Calculate Drift (Average Distance from Centroid)
-    // This measures pure stability/jitter, filtering out "accuracy" errors
     let totalDeviation = 0;
     gazes.forEach(g => {
         totalDeviation += getDistance(g.x, g.y, centroidX, centroidY);
     });
 
-    const avgStability = totalDeviation / count;
+    const avgStability = totalDeviation / gazes.length;
 
     // Scoring: 
     // < 2.0% deviation = Perfect (100)
-    // 5.0% deviation = Good (~85)
-    // 10.0% deviation = Borderline (~70)
-    // > 20.0% deviation = Fail (<40)
     // Formula: Score drops by 3 points for every 1% deviation
     const score = Math.max(0, 100 - (avgStability * 3.0));
 
@@ -288,6 +291,9 @@ const analyzeSPT = (data, m) => {
     const MIN_TARGET_VEL = 0.005; // Minimum target velocity to count (% per ms)
 
     for (let i = 5; i < data.length - 5; i++) {
+        // Skip low confidence data points
+        if (data[i].confidence !== undefined && data[i].confidence < 0.5) continue;
+
         const dt = Math.max(data[i].time - data[i - 1].time, MIN_DT);
 
         const targetVel = (data[i].targetX - data[i - 1].targetX) / dt;

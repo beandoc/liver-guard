@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { TRANSLATIONS } from '../translations';
 
@@ -5,6 +6,7 @@ const STAGES = {
     INTRO: 'intro',
     OFF_STAGE: 'off',
     ON_STAGE: 'on',
+    DEMOGRAPHICS: 'demographics',
     RESULTS: 'results'
 };
 
@@ -34,6 +36,10 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         on: { time: 0, trials: 0 }
     });
 
+    // Demographics State
+    const [demographics, setDemographics] = useState({ age: '', gender: 'male', education: 'secondary' });
+    const [heGrade, setHeGrade] = useState(0);
+
     const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const colors = getColorData(lang);
 
@@ -50,7 +56,7 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
             if (currentStage === STAGES.OFF_STAGE) {
                 setStage('interstitial');
             } else {
-                setStage(STAGES.RESULTS);
+                setStage(STAGES.DEMOGRAPHICS);
             }
             return;
         }
@@ -163,6 +169,63 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
         );
     }
 
+    if (stage === STAGES.DEMOGRAPHICS) {
+        return (
+            <div style={{ minHeight: '100vh', background: '#030712', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+                <div className="w-full max-w-md mx-auto animate-fadeIn p-8 bg-slate-900/80 rounded-3xl border border-slate-700 backdrop-blur-xl">
+                    <h2 className="text-2xl font-bold text-white mb-8 text-center bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">{t.demographics_title}</h2>
+
+                    <div className="space-y-6">
+                        <div>
+                            <label className="block text-slate-400 text-sm font-semibold mb-2 uppercase tracking-wide">{t.age}</label>
+                            <input
+                                type="number"
+                                className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                value={demographics.age}
+                                onChange={(e) => setDemographics({ ...demographics, age: e.target.value })}
+                                placeholder="e.g. 45"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-slate-400 text-sm font-semibold mb-2 uppercase tracking-wide">{t.gender}</label>
+                            <select
+                                className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={demographics.gender}
+                                onChange={(e) => setDemographics({ ...demographics, gender: e.target.value })}
+                            >
+                                <option value="male">{t.gender_male}</option>
+                                <option value="female">{t.gender_female}</option>
+                                <option value="other">{t.gender_other}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-slate-400 text-sm font-semibold mb-2 uppercase tracking-wide">{t.education}</label>
+                            <select
+                                className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={demographics.education}
+                                onChange={(e) => setDemographics({ ...demographics, education: e.target.value })}
+                            >
+                                <option value="none">{t.edu_none}</option>
+                                <option value="primary">{t.edu_primary}</option>
+                                <option value="secondary">{t.edu_secondary}</option>
+                                <option value="graduate">{t.edu_graduate}</option>
+                                <option value="postgrad">{t.edu_postgrad}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => setStage(STAGES.RESULTS)}
+                        disabled={!demographics.age}
+                        className="w-full mt-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/20"
+                    >
+                        {t.submit_continue}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     if (stage === STAGES.RESULTS) {
         const offTime = results.off.time;
         const onTime = results.on.time;
@@ -191,13 +254,39 @@ const StroopTest = ({ onComplete, onExit, lang = 'en' }) => {
                     {new Date().toLocaleString()}
                 </div>
 
-                <div className="space-y-3 px-2">
+                <div className="space-y-3 px-2 mb-8">
                     {metrics.map((m, i) => (
                         <div key={i} className="bg-slate-900/80 p-4 rounded-lg flex justify-between items-center border-l-4 border-slate-700 hover:bg-slate-800 transition-colors">
                             <span className="text-secondary text-sm font-medium">{m.label}</span>
                             <span className="text-white font-mono">{m.value}</span>
                         </div>
                     ))}
+                </div>
+
+                {/* Physician Grading */}
+                <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/30 mb-8 text-left">
+                    <h3 className="text-indigo-300 font-bold mb-4 text-sm uppercase tracking-wide">{t.physician_grading}</h3>
+                    <div className="flex justify-between gap-2 mb-6">
+                        {[0, 1, 2, 3, 4].map(g => (
+                            <button
+                                key={g}
+                                onClick={() => setHeGrade(g)}
+                                className={`flex-1 aspect-square rounded-lg font-bold text-xl transition-all ${heGrade === g ? 'bg-indigo-500 text-white ring-2 ring-indigo-300 scale-105' : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700'}`}
+                            >
+                                {g}
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        onClick={() => {
+                            console.log("Clinical Data Submitted:", { results, demographics, heGrade, date: new Date().toISOString() });
+                            alert("Data Saved for Training.");
+                            onExit();
+                        }}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+                    >
+                        {t.submit_data}
+                    </button>
                 </div>
             </div>
         );
