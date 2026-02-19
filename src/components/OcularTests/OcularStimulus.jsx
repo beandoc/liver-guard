@@ -16,7 +16,10 @@ const DEMO_TEXT = {
         headStill: 'Keep Head Still',
         tooDark: 'Environment Too Dark',
         postError: 'Distance Changed: Re-align',
-        driftError: 'Face Drifted: Center yourself'
+        driftError: 'Face Drifted: Center yourself',
+        aligningFace: 'Aligning Face...',
+        signalLock: 'Signal Locked: Starting Test',
+        recording: 'REC'
     },
     hi: {
         lookDot: 'बिंदु को देखें।',
@@ -31,7 +34,10 @@ const DEMO_TEXT = {
         headStill: 'सिर स्थिर रखें',
         tooDark: 'वातावरण बहुत अंधेरा है',
         postError: 'दूरी बदल गई: फिर से align करें',
-        driftError: 'चेहरा भटक गया: खुद को केंद्र में लाएं'
+        driftError: 'चेहरा भटक गया: खुद को केंद्र में लाएं',
+        aligningFace: 'चेहरा संरेखित हो रहा है...',
+        signalLock: 'सिग्नल लॉक: परीक्षण शुरू हो रहा है',
+        recording: 'रिकॉर्डिंग'
     },
     mr: {
         lookDot: 'बिंदूकडे पहा.',
@@ -46,7 +52,10 @@ const DEMO_TEXT = {
         headStill: 'डोके स्थिर ठेवा',
         tooDark: 'वातावरण खूप गडद आहे',
         postError: 'अंतर बदलले: पुन्हा संरेखित करा',
-        driftError: 'चेहरा सरकला: स्वतःला मध्यभागी आणा'
+        driftError: 'चेहरा सरकला: स्वतःला मध्यभागी आणा',
+        aligningFace: 'चेहरा संरेखित होत आहे...',
+        signalLock: 'सिग्नल लॉक: चाचणी सुरू होत आहे',
+        recording: 'रेकॉर्डिंग'
     }
 };
 
@@ -134,18 +143,21 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
 
         setupCamera();
 
-        if (!config || !startTimeRef.current) {
-            startTimeRef.current = Date.now();
-        }
-
-        const startTime = startTimeRef.current;
-        let lastEventTime = startTime;
-
-        // Memory Sequence Variables (Ref-like in closure)
+        const signalLockFrames = 30; // 1 second @ 30fps
+        let lockCounter = 0;
+        let lastEventTime = 0;
         let memoryX = 50;
 
         const animate = () => {
             const now = Date.now();
+
+            // Wait for lock before starting clock
+            if (!startTimeRef.current) {
+                requestRef.current = requestAnimationFrame(animate);
+                return;
+            }
+
+            const startTime = startTimeRef.current;
             const elapsed = now - startTime;
 
             if (!isDemo && elapsed > config.duration) {
@@ -243,13 +255,32 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 tracker.track(activeVideo).then(pos => {
                     isTrackingRef.current = false; // Release
                     if (pos) {
-                        // Distance Guard Rail (P2)
-                        if (pos.faceZ < 0.22) {
+                        // Distance Guard Rail (P2) - Relaxed to 0.15 for better compatibility
+                        const isDistOk = pos.faceZ >= 0.15 && pos.faceZ <= 0.6;
+                        const isPosOk = pos.faceCenter.x > 0.2 && pos.faceCenter.x < 0.8 && pos.faceCenter.y > 0.2 && pos.faceCenter.y < 0.8;
+
+                        if (!isDistOk) {
                             if (!distanceWarning) setDistanceWarning(true);
                         } else {
                             if (distanceWarning) setDistanceWarning(false);
                         }
 
+                        // Start Logic: Wait for stable optimal position
+                        if (!startTimeRef.current && !isDemo) {
+                            if (isDistOk && isPosOk && pos.confidence > 0.5) {
+                                lockCounter++;
+                                if (lockCounter >= signalLockFrames) {
+                                    console.log('[OcularStimulus] Signal Locked. Starting test.');
+                                    startTimeRef.current = Date.now();
+                                    lastEventTime = startTimeRef.current;
+                                }
+                            } else {
+                                lockCounter = 0;
+                            }
+                            setCurrentConfidence(pos.confidence);
+                            setLiveGaze(tracker.getGaze(pos.avg));
+                            return;
+                        }
 
                         // 1. Snapshot / Compare Posture (P1/P2)
                         if (!startPostureRef.current) {

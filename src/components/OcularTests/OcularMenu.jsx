@@ -7,7 +7,7 @@ import OcularResults from './OcularResults';
 import { analyzeTestResults } from './OcularAnalyzer';
 import { IrisTracker } from '../../utils/IrisTracker';
 
-const OcularMenuContent = ({ onExit, lang = 'en', videoElement, isCameraReady, startCamera }) => {
+const OcularMenuContent = ({ onExit, onUpdate, lang = 'en', videoElement, isCameraReady, startCamera }) => {
     const [selectedTest, setSelectedTest] = useState(null);
     const [viewMode, setViewMode] = useState('menu'); // 'menu', 'intro', 'test', 'demo', 'calibration', 'results'
     const [testResults, setTestResults] = useState(null);
@@ -16,9 +16,11 @@ const OcularMenuContent = ({ onExit, lang = 'en', videoElement, isCameraReady, s
     const trackerRef = useRef(null);
 
     // Lazy initialize tracker if not set by calibration
-    if (!trackerRef.current) {
-        trackerRef.current = new IrisTracker();
-    }
+    React.useEffect(() => {
+        if (!trackerRef.current) {
+            trackerRef.current = new IrisTracker();
+        }
+    }, []);
 
     const t = OCULAR_TRANSLATIONS[lang] || OCULAR_TRANSLATIONS.en;
 
@@ -54,6 +56,15 @@ const OcularMenuContent = ({ onExit, lang = 'en', videoElement, isCameraReady, s
         // Add to session summary
         const newSessionResults = { ...sessionResults, [selectedTest.id]: results };
         setSessionResults(newSessionResults);
+
+        // Sync with parent App dashboard (Pillar IV)
+        if (onUpdate) {
+            const compositeScore = Math.round(
+                Object.values(newSessionResults).reduce((sum, r) => sum + r.score, 0) /
+                Object.keys(newSessionResults).length
+            );
+            onUpdate(compositeScore);
+        }
 
         setTestResults(results);
         setViewMode('results');

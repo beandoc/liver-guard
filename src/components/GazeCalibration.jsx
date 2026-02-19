@@ -30,7 +30,10 @@ const GazeCalibration = ({ onComplete, onCancel, videoElement, isCameraReady }) 
     const [postureFeedback, setPostureFeedback] = useState({ msg: '', ok: false });
 
     const videoRef = useRef(null);
-    const trackerRef = useRef(new IrisTracker());
+    const trackerRef = useRef(null);
+    if (!trackerRef.current) {
+        trackerRef.current = new IrisTracker();
+    }
     const streamRef = useRef(null);
     const rafRef = useRef(null);
     const lastFaceZRef = useRef(null);
@@ -46,6 +49,14 @@ const GazeCalibration = ({ onComplete, onCancel, videoElement, isCameraReady }) 
         let cancelled = false;
 
         const loadEngine = async () => {
+            console.log("[GazeCalibration] Checking engine status...");
+            if (trackerRef.current.isReady) {
+                console.log("[GazeCalibration] Engine already ready, skipping loading phase.");
+                setEngineReady(true);
+                setPhase('intro');
+                return;
+            }
+
             setPhase('engine_loading');
             setStatusMsg('Loading AI engine... (first load may take 10-15s)');
 
@@ -65,18 +76,14 @@ const GazeCalibration = ({ onComplete, onCancel, videoElement, isCameraReady }) 
             }
 
             setStatusMsg('Compiling AI model (WASM)...');
+            console.log("[GazeCalibration] Initializing tracker...");
             const ok = await trackerRef.current.initialize();
+            console.log("[GazeCalibration] Tracker initialized, ok:", ok);
 
             if (cancelled) return;
 
             if (ok) {
                 setEngineReady(true);
-                // If camera is already ready (from parent), auto-transition or just mark ready
-                if (isCameraReady) {
-                    setStatusMsg('AI engine ready. & Camera active.');
-                } else {
-                    setStatusMsg('AI engine ready.');
-                }
                 setPhase('intro');
             } else {
                 setErrorMsg('AI engine failed to initialize. This may be a browser compatibility issue. Try Chrome or Edge.');
@@ -88,10 +95,25 @@ const GazeCalibration = ({ onComplete, onCancel, videoElement, isCameraReady }) 
 
         return () => {
             cancelled = true;
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            // Don't stop tracks here, parent owns them
         };
-    }, [isCameraReady]);
+    }, []); // Only on mount
+
+    // Update status message based on camera readiness without restarting the engine
+    useEffect(() => {
+        if (engineReady) {
+            if (isCameraReady) {
+                setStatusMsg('AI engine ready. & Camera active.');
+            } else {
+                setStatusMsg('AI engine ready.');
+            }
+        }
+    }, [isCameraReady, engineReady]);
+
+    useEffect(() => {
+        return () => {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        }
+    }, []);
 
     const startCamera = async () => {
         if (!engineReady) return;
@@ -172,17 +194,17 @@ const GazeCalibration = ({ onComplete, onCancel, videoElement, isCameraReady }) 
                         setGazePos(pos.avg);
                         setConfidence(Math.round(pos.confidence * 100));
 
-                        // 1. Precise Posture & Distance Check (P1/P2)
-                        // Optimal faceZ is ~0.33 of screen width (approx 45cm)
+                        // 1. Precise Posture & Distance Check (P1/P2) - Relaxed Thresholds
+                        // Optimal faceZ is ~0.3 of screen width (approx 45-60cm)
                         let msg = '';
                         let ok = true;
 
-                        if (pos.faceZ < 0.25) { msg = 'Move Closer'; ok = false; }
-                        else if (pos.faceZ > 0.45) { msg = 'Move Further Back'; ok = false; }
-                        else if (pos.faceCenter.x < 0.35) { msg = 'Move Face Right →'; ok = false; }
-                        else if (pos.faceCenter.x > 0.65) { msg = '← Move Face Left'; ok = false; }
-                        else if (pos.faceCenter.y < 0.35) { msg = 'Lower your screen/face ↓'; ok = false; }
-                        else if (pos.faceCenter.y > 0.65) { msg = 'Raise your screen/face ↑'; ok = false; }
+                        if (pos.faceZ < 0.15) { msg = 'Move Closer'; ok = false; }
+                        else if (pos.faceZ > 0.55) { msg = 'Move Further Back'; ok = false; }
+                        else if (pos.faceCenter.x < 0.25) { msg = 'Move Face Right →'; ok = false; }
+                        else if (pos.faceCenter.x > 0.75) { msg = '← Move Face Left'; ok = false; }
+                        else if (pos.faceCenter.y < 0.25) { msg = 'Lower your screen/face ↓'; ok = false; }
+                        else if (pos.faceCenter.y > 0.75) { msg = 'Raise your screen/face ↑'; ok = false; }
                         else { msg = 'Position Optimal'; ok = true; }
 
                         setPostureFeedback({ msg, ok });

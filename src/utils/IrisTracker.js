@@ -23,82 +23,74 @@ export class IrisTracker {
 
     /**
      * Initializes the MediaPipe Face Mesh engine.
-     * Sends a warm-up frame and waits for the first onResults callback
-     * to confirm the WASM engine is truly ready.
-     * @returns {Promise<boolean>}
+     * Uses a static promise to ensure only one initialization happens at a time
+     * even if multiple instances are created.
      */
     async initialize() {
         if (this.isReady) return true;
 
-        return new Promise((resolve) => {
-            try {
-                if (!window.FaceMesh) {
-                    console.error("[IrisTracker] window.FaceMesh not found. CDN script may not have loaded.");
-                    resolve(false);
-                    return;
-                }
-
-                console.log("[IrisTracker] Creating FaceMesh instance...");
-
-                this.faceMesh = new window.FaceMesh({
-                    locateFile: (file) => {
-                        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-                    }
-                });
-
-                this.faceMesh.setOptions({
-                    maxNumFaces: 1,
-                    refineLandmarks: true,
-                    minDetectionConfidence: 0.5,
-                    minTrackingConfidence: 0.5
-                });
-
-                // Set up a longer timeout (60s) for slow networks/older devices
-                const timeout = setTimeout(() => {
-                    if (!this.isReady) {
-                        console.error("[IrisTracker] Initialization timed out after 60 seconds.");
+        if (!window._irisTrackerInitPromise) {
+            window._irisTrackerInitPromise = new Promise((resolve) => {
+                try {
+                    if (!window.FaceMesh) {
                         resolve(false);
+                        return;
                     }
-                }, 60000);
 
-                this.faceMesh.onResults((results) => {
-                    if (!this.isReady) {
-                        clearTimeout(timeout);
-                        this.isReady = true;
-                        console.log("[IrisTracker] AI Engine fully compiled and receiving data.");
-                        resolve(true);
-                    }
-                    if (results.multiFaceLandmarks) {
-                        this.lastResults = results;
-                    }
-                });
+                    const faceMesh = new window.FaceMesh({
+                        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+                    });
 
-                // Poll for internal ready state
-                console.log("[IrisTracker] Waiting for WASM engine to settle...");
-                const warmupCheck = setInterval(() => {
-                    try {
-                        if (this.faceMesh && typeof this.faceMesh.send === 'function') {
-                            clearInterval(warmupCheck);
-                            // Give it a moment to stabilize before marking ready to test
-                            setTimeout(() => {
-                                if (!this.isReady) {
-                                    clearTimeout(timeout);
-                                    this.isReady = true;
-                                    console.log("[IrisTracker] AI Engine initialized (Ready).");
-                                    resolve(true);
-                                }
-                            }, 1000);
+                    faceMesh.setOptions({
+                        maxNumFaces: 1,
+                        refineLandmarks: true,
+                        minDetectionConfidence: 0.5,
+                        minTrackingConfidence: 0.5
+                    });
+
+                    const timeout = setTimeout(() => {
+                        console.error("[IrisTracker] Timeout reached.");
+                        resolve(false);
+                    }, 60000);
+
+                    // Central results dispatcher
+                    faceMesh.onResults((results) => {
+                        window._irisTrackerLastResults = results;
+                        // Trigger any pending track calls
+                        if (window._irisTrackerPendingResolvers) {
+                            const resolvers = [...window._irisTrackerPendingResolvers];
+                            window._irisTrackerPendingResolvers = [];
+                            resolvers.forEach(res => res(results));
                         }
-                    } catch (e) {
-                        // Still compiling...
-                    }
-                }, 500);
+                    });
 
-            } catch (err) {
-                console.error("[IrisTracker] Fatal init error:", err);
-                resolve(false);
-            }
-        });
+                    const warmupCheck = setInterval(() => {
+                        try {
+                            if (faceMesh && typeof faceMesh.send === 'function') {
+                                clearInterval(warmupCheck);
+                                window._irisTrackerInstance = faceMesh;
+                                setTimeout(() => {
+                                    clearTimeout(timeout);
+                                    console.log("[IrisTracker] Global AI Engine Ready.");
+                                    resolve(true);
+                                }, 1000);
+                            }
+                        } catch (e) { }
+                    }, 500);
+
+                } catch (err) {
+                    console.error("[IrisTracker] Init error:", err);
+                    resolve(false);
+                }
+            });
+        }
+
+        const ok = await window._irisTrackerInitPromise;
+        if (ok) {
+            this.faceMesh = window._irisTrackerInstance;
+            this.isReady = true;
+        }
+        return ok;
     }
 
     /**
@@ -111,13 +103,17 @@ export class IrisTracker {
         if (!videoElement || videoElement.readyState < 2) return null;
 
         try {
-            await this.faceMesh.send({ image: videoElement });
+            // Use a promise to wait for the next set of results from the global instance
+            const resultPromise = new Promise(resolve => {
+                if (!window._irisTrackerPendingResolvers) window._irisTrackerPendingResolvers = [];
+                window._irisTrackerPendingResolvers.push(resolve);
+            });
 
-            if (
-                this.lastResults &&
-                this.lastResults.multiFaceLandmarks &&
-                this.lastResults.multiFaceLandmarks.length > 0
-            ) {
+            await this.faceMesh.send({ image: videoElement });
+            const results = await resultPromise;
+            this.lastResults = results;
+
+            if (results && results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
                 const landmarks = this.lastResults.multiFaceLandmarks[0];
 
                 const leftIris = landmarks[468];
@@ -174,8 +170,9 @@ export class IrisTracker {
                 // Far (0.15): Noisier -> Smooth more (Lower Q, Higher R).
                 // Close (0.35): Clearer -> Responsive (Higher Q, Lower R).
                 const distFactor = Math.min(1.5, Math.max(0.5, faceWidth / 0.25));
-                const newQ = 0.015 * distFactor;
-                const newR = 0.5 / distFactor;
+                // Enhanced Smoothing (D4): Higher R (measurement noise) = more smoothing
+                const newQ = 0.005 * distFactor; // Reduced process noise for more stability
+                const newR = 5.0 / distFactor; // Significantly increased measurement noise floor
 
                 this.leftKalman.setNoise(newQ, newR);
                 this.rightKalman.setNoise(newQ, newR);

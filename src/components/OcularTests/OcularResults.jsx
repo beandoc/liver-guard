@@ -7,9 +7,9 @@ const OcularResults = ({ testId, results, onRetry, onExit, onNext, lang = 'en' }
     const testInfo = OCULAR_TESTS[testId] || {};
 
     const score = results.score ?? 0;
-    const isGood = score >= 85;
-    const isWarn = score >= 70 && score < 85;
-    const isBad = score < 70;
+    const isGood = score >= 80;
+    const isWarn = score >= 60 && score < 80;
+    const isBad = score < 60;
 
     const [showReplay, setShowReplay] = useState(false);
     const [animScore, setAnimScore] = useState(0);
