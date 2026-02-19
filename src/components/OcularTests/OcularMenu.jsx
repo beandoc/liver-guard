@@ -371,7 +371,7 @@ const OcularMenuContent = ({ onExit, onUpdate, lang = 'en', videoElement, isCame
 };
 
 const OcularMenu = (props) => {
-    const videoRef = useRef(null);
+    const [videoElement, setVideoElement] = useState(null);
     const streamRef = useRef(null);
     const [isCameraReady, setIsCameraReady] = useState(false);
 
@@ -395,12 +395,12 @@ const OcularMenu = (props) => {
             console.log(`[Camera] Hardware Linked: ${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
             window.__cameraFPS = settings.frameRate || 30;
 
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
+            if (videoElement) {
+                videoElement.srcObject = stream;
                 await new Promise((resolve) => {
-                    videoRef.current.onloadedmetadata = () => resolve();
+                    videoElement.onloadedmetadata = () => resolve();
                 });
-                await videoRef.current.play();
+                await videoElement.play();
                 setIsCameraReady(true);
             }
         } catch (err) {
@@ -425,13 +425,13 @@ const OcularMenu = (props) => {
         <>
             <OcularMenuContent
                 {...props}
-                videoElement={videoRef.current}
+                videoElement={videoElement}
                 isCameraReady={isCameraReady}
                 startCamera={startCamera}
             />
             {/* Shared hidden video sink for persistent stream */}
             <video
-                ref={videoRef}
+                ref={setVideoElement}
                 className="hidden"
                 playsInline
                 muted

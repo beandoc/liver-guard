@@ -59,6 +59,16 @@ const DEMO_TEXT = {
     }
 };
 
+const MemoizedVideo = React.memo(React.forwardRef(({ className }, ref) => (
+    <video
+        ref={ref}
+        className={className}
+        playsInline
+        muted
+        crossOrigin="anonymous"
+    />
+)));
+
 const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, videoElement, lang = 'en' }) => {
     const t = DEMO_TEXT[lang] || DEMO_TEXT.en;
     const requestRef = useRef();
@@ -66,43 +76,58 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
     const gazeDataRef = useRef([]);
     const internalVideoRef = useRef(null);
     const streamRef = useRef(null);
-    const isTrackingRef = useRef(false); // Prevention of concurrent AI calls
+    const isTrackingRef = useRef(false);
 
-    // Ref to track current simulation state (synced with visual state for recording)
     const targetStateRef = useRef({ x: 50, y: 50, visible: true, ghost: false, color: null });
+    const stimulusOnsetRef = useRef(null); // Tier 1 Fix #3: precise stimulus event marker
+    const trackingIntervalRef = useRef(null); // Tier 1 Fix #1: decoupled tracking loop
 
     const config = TEST_CONFIG[testId.toUpperCase()];
 
-    // Visual State for React Render
+    // Visual State
     const [targetPos, setTargetPos] = useState({ x: 50, y: 50, visible: true });
     const [distanceWarning, setDistanceWarning] = useState(false);
-
-    // Live Gaze State
     const [liveGaze, setLiveGaze] = useState(null);
     const [exitConfirm, setExitConfirm] = useState(false);
     const [headWarning, setHeadWarning] = useState(false);
     const [isTooDark, setIsTooDark] = useState(false);
     const [postureWarning, setPostureWarning] = useState('');
     const startPostureRef = useRef(null);
-
-    // Demo Text State
     const [demoInstruction, setDemoInstruction] = useState('');
-    const [currentConfidence, setCurrentConfidence] = useState(0); // Signal Quality (0.0 - 1.0)
+    const [currentConfidence, setCurrentConfidence] = useState(0);
+    const [loadingStatus, setLoadingStatus] = useState("INITIALIZING...");
     const lastFaceZRef = useRef(null);
 
+    // Poll for AI status updates during loading
     useEffect(() => {
-        // --- High Performance Camera Setup for Hybrid Tracker ---
+        if (!tracker || tracker.isReady) return;
+        const interval = setInterval(() => {
+            if (window._irisTrackerStatus && window._irisTrackerStatus !== loadingStatus) {
+                setLoadingStatus(window._irisTrackerStatus);
+            }
+        }, 500);
+        return () => clearInterval(interval);
+    }, [tracker, loadingStatus]);
+
+    useEffect(() => {
         const setupCamera = async () => {
-            // If demo, we don't need camera
             if (isDemo) return;
 
-            // Ensure tracker is initialized (loads MediaPipe libraries)
+            // Initialize tracker FIRST (before checking video)
             if (tracker && !tracker.isReady) {
-                console.log('[OcularStimulus] Initializing tracker engine...');
+                console.log('[OcularStimulus] Initializing tracker...');
                 await tracker.initialize();
             }
 
-            // Use Shared Video Stream if available (Preferred)
+            // Guard: already streaming
+            if (internalVideoRef.current && internalVideoRef.current.srcObject) {
+                if (internalVideoRef.current.paused) {
+                    internalVideoRef.current.play().catch(() => { });
+                }
+                return;
+            }
+
+            // Try shared video stream
             if (videoElement && videoElement.srcObject) {
                 if (internalVideoRef.current) {
                     internalVideoRef.current.srcObject = videoElement.srcObject;
@@ -112,7 +137,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 return;
             }
 
-            // Retry: wait for shared video to become available (parent may still be initializing)
+            // Retry shared stream
             for (let attempt = 0; attempt < 10; attempt++) {
                 await new Promise(r => setTimeout(r, 300));
                 if (videoElement && videoElement.srcObject) {
@@ -120,12 +145,12 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                         internalVideoRef.current.srcObject = videoElement.srcObject;
                         await internalVideoRef.current.play();
                     }
-                    console.log(`[OcularStimulus] Camera ready via shared stream (attempt ${attempt + 1})`);
+                    console.log(`[OcularStimulus] Camera ready (attempt ${attempt + 1})`);
                     return;
                 }
             }
 
-            // Fallback: Request camera locally
+            // Fallback: own camera
             console.warn('[OcularStimulus] Shared stream unavailable, requesting own camera');
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -136,23 +161,136 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                     internalVideoRef.current.srcObject = stream;
                     await internalVideoRef.current.play();
                 }
-                console.log('[OcularStimulus] Camera ready via fallback stream');
             } catch (e) {
-                console.error("Test Camera Error:", e);
+                console.error("Camera Error:", e);
             }
         };
 
         setupCamera();
 
-        const signalLockFrames = 30; // 1 second @ 30fps
         let lockCounter = 0;
         let lastEventTime = 0;
         let memoryX = 50;
 
+        // ============================================================
+        // TIER 1 FIX #1: DECOUPLED HIGH-FREQUENCY TRACKING LOOP
+        // Runs at ~125Hz (8ms interval) independent of rendering frame rate.
+        // This gives ≤8ms temporal precision for saccade latency measurement,
+        // compared to ~16ms when coupled to requestAnimationFrame.
+        // ============================================================
+        const startTrackingLoop = () => {
+            if (isDemo) return;
+
+            trackingIntervalRef.current = setInterval(() => {
+                const activeVideo = videoElement || internalVideoRef.current;
+
+                // Auto-recover paused video
+                if (activeVideo && activeVideo.paused && activeVideo.srcObject) {
+                    activeVideo.play().catch(() => { });
+                }
+
+                if (!tracker || !activeVideo || activeVideo.readyState < 2 || isTrackingRef.current) return;
+                isTrackingRef.current = true;
+
+                // Occasional brightness check
+                if (Math.random() > 0.99) {
+                    try {
+                        const c = document.createElement('canvas');
+                        c.width = 40; c.height = 40;
+                        const ctx = c.getContext('2d');
+                        ctx.drawImage(activeVideo, 0, 0, 40, 40);
+                        const px = ctx.getImageData(0, 0, 40, 40).data;
+                        let lum = 0;
+                        for (let i = 0; i < px.length; i += 4) lum += (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]);
+                        setIsTooDark((lum / 400) < 40);
+                    } catch (_e) { /* ignore */ }
+                }
+
+                tracker.track(activeVideo).then(pos => {
+                    isTrackingRef.current = false;
+                    if (!pos) {
+                        setLiveGaze(null);
+                        setCurrentConfidence(0);
+                        return;
+                    }
+
+                    const isDistOk = pos.faceZ >= 0.1 && pos.faceZ <= 0.8;
+                    const isPosOk = pos.faceCenter.x > 0.1 && pos.faceCenter.x < 0.9 && pos.faceCenter.y > 0.1 && pos.faceCenter.y < 0.9;
+                    setDistanceWarning(!isDistOk);
+
+                    // Pre-lock: accumulate stable frames
+                    if (!startTimeRef.current) {
+                        if (isDistOk && isPosOk && pos.confidence > 0.3) {
+                            lockCounter++;
+                            if (lockCounter >= 15) {
+                                console.log('[OcularStimulus] Signal Locked. Starting test.');
+                                startTimeRef.current = performance.now();
+                                lastEventTime = startTimeRef.current;
+                            }
+                        } else {
+                            lockCounter = 0;
+                        }
+                        setCurrentConfidence(pos.confidence);
+                        setLiveGaze(tracker.getGaze(pos.avg));
+                        return;
+                    }
+
+                    // Post-lock: posture monitoring
+                    if (!startPostureRef.current) {
+                        startPostureRef.current = { z: pos.faceZ, center: pos.faceCenter };
+                    } else {
+                        const zDiff = Math.abs(pos.faceZ - startPostureRef.current.z);
+                        const xDiff = Math.abs(pos.faceCenter.x - startPostureRef.current.center.x);
+                        const yDiff = Math.abs(pos.faceCenter.y - startPostureRef.current.center.y);
+                        if (zDiff > 0.06) setPostureWarning(t.postError);
+                        else if (xDiff > 0.1 || yDiff > 0.1) setPostureWarning(t.driftError);
+                        else setPostureWarning('');
+                    }
+
+                    const gaze = tracker.getGaze(pos.avg);
+                    setLiveGaze(gaze);
+                    setCurrentConfidence(pos.confidence);
+
+                    if (lastFaceZRef.current) {
+                        setHeadWarning(Math.abs(pos.faceZ - lastFaceZRef.current) > 0.05);
+                    }
+                    lastFaceZRef.current = pos.faceZ;
+
+                    // TIER 1 FIX #3: Record data with precise stimulus onset timestamp
+                    gazeDataRef.current.push({
+                        time: performance.now(),
+                        eyeX: pos.avg.x,
+                        eyeY: pos.avg.y,
+                        leftEye: pos.left,
+                        rightEye: pos.right,
+                        vergenceX: pos.vergenceX,
+                        vergenceY: pos.vergenceY,
+                        isBlinking: pos.isBlinking,
+                        confidence: pos.confidence,
+                        targetX: targetStateRef.current.x,
+                        targetY: targetStateRef.current.y,
+                        targetVisible: targetStateRef.current.visible,
+                        stimulusOnsetTime: stimulusOnsetRef.current, // Precise event marker
+                        headX: pos.faceCenter.x,
+                        headY: pos.faceCenter.y
+                    });
+                }).catch(() => {
+                    isTrackingRef.current = false;
+                });
+            }, 8); // 8ms = ~125Hz sampling
+        };
+
+        startTrackingLoop();
+
+        // ============================================================
+        // VISUAL SIMULATION LOOP (60fps via requestAnimationFrame)
+        // Handles target dot movement and stimulus timing.
+        // Decoupled from tracking — visuals don't affect data collection.
+        // ============================================================
         const animate = () => {
             const now = performance.now();
 
-            // Wait for lock before starting clock
+            // Wait for lock before running test simulation
             if (!startTimeRef.current) {
                 requestRef.current = requestAnimationFrame(animate);
                 return;
@@ -161,6 +299,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
             const startTime = startTimeRef.current;
             const elapsed = now - startTime;
 
+            // Test duration check
             if (!isDemo && elapsed > config.duration) {
                 if (streamRef.current) {
                     streamRef.current.getTracks().forEach(t => t.stop());
@@ -169,7 +308,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 return;
             }
 
-            // --- 1. Simulation Logic (Update targetStateRef) ---
+            // --- Simulation Logic ---
             let newState = { ...targetStateRef.current };
             let instruction = '';
 
@@ -216,7 +355,9 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                         newState = { x: memoryX, y: 50, visible: true, ghost: true, color: 'white' };
                         instruction = t.lookBack;
                     } else {
-                        newState = { ...newState, visible: false };
+                        // TIER 2 FIX: Move target to memory location so data stream records a "jump" event
+                        // even though it's invisible. This acts as the "Go" signal for the analyzer.
+                        newState = { x: memoryX, y: 50, visible: false };
                     }
                 }
             }
@@ -231,112 +372,23 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 if (isDemo) instruction = t.stare;
             }
 
-            // --- 2. Update Visuals ---
-            if (newState.x !== targetStateRef.current.x || newState.y !== targetStateRef.current.y || newState.visible !== targetStateRef.current.visible || newState.color !== targetStateRef.current.color) {
-                newState.timestamp = performance.now();
+            // Update visual state if changed — with precise stimulus onset timestamp
+            const isChanged =
+                newState.x !== targetStateRef.current.x ||
+                newState.y !== targetStateRef.current.y ||
+                newState.visible !== targetStateRef.current.visible ||
+                newState.color !== targetStateRef.current.color ||
+                newState.ghost !== targetStateRef.current.ghost ||
+                newState.isFixation !== targetStateRef.current.isFixation;
+
+            if (isChanged) {
+                const onsetTime = performance.now();
+                newState.timestamp = onsetTime;
+                // TIER 1 FIX #3: Record precise stimulus onset for latency measurement
+                stimulusOnsetRef.current = onsetTime;
                 setTargetPos(newState);
                 if (instruction) setDemoInstruction(instruction);
                 targetStateRef.current = newState;
-            }
-
-            // --- 3. Clinical Tracking (MediaPipe) ---
-            const activeVideo = videoElement || internalVideoRef.current;
-            if (!isDemo && tracker && activeVideo && activeVideo.readyState >= 2 && !isTrackingRef.current) {
-                isTrackingRef.current = true; // Lock
-
-                // Brightness Check (P3)
-                if (Math.random() > 0.98) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 40; canvas.height = 40;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(activeVideo, 0, 0, 40, 40);
-                    const data = ctx.getImageData(0, 0, 40, 40).data;
-                    let lum = 0;
-                    for (let i = 0; i < data.length; i += 4) {
-                        lum += (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-                    }
-                    setIsTooDark((lum / 400) < 40);
-                }
-
-                tracker.track(activeVideo).then(pos => {
-                    isTrackingRef.current = false; // Release
-                    if (pos) {
-                        // Distance Guard Rail (P2) - Relaxed to 0.15 for better compatibility
-                        const isDistOk = pos.faceZ >= 0.15 && pos.faceZ <= 0.6;
-                        const isPosOk = pos.faceCenter.x > 0.2 && pos.faceCenter.x < 0.8 && pos.faceCenter.y > 0.2 && pos.faceCenter.y < 0.8;
-
-                        if (!isDistOk) {
-                            if (!distanceWarning) setDistanceWarning(true);
-                        } else {
-                            if (distanceWarning) setDistanceWarning(false);
-                        }
-
-                        // Start Logic: Wait for stable optimal position
-                        if (!startTimeRef.current && !isDemo) {
-                            if (isDistOk && isPosOk && pos.confidence > 0.5) {
-                                lockCounter++;
-                                if (lockCounter >= signalLockFrames) {
-                                    console.log('[OcularStimulus] Signal Locked. Starting test.');
-                                    startTimeRef.current = performance.now();
-                                    lastEventTime = startTimeRef.current;
-                                }
-                            } else {
-                                lockCounter = 0;
-                            }
-                            setCurrentConfidence(pos.confidence);
-                            setLiveGaze(tracker.getGaze(pos.avg));
-                            return;
-                        }
-
-                        // 1. Snapshot / Compare Posture (P1/P2)
-                        if (!startPostureRef.current) {
-                            startPostureRef.current = { z: pos.faceZ, center: pos.faceCenter };
-                        } else {
-                            const zDiff = Math.abs(pos.faceZ - startPostureRef.current.z);
-                            const xDiff = Math.abs(pos.faceCenter.x - startPostureRef.current.center.x);
-                            const yDiff = Math.abs(pos.faceCenter.y - startPostureRef.current.center.y);
-
-                            if (zDiff > 0.06) setPostureWarning(t.postError);
-                            else if (xDiff > 0.1 || yDiff > 0.1) setPostureWarning(t.driftError);
-                            else setPostureWarning('');
-                        }
-
-                        // Live Feedback - Now works even without calibration (Fallback mode)
-                        const gaze = tracker.getGaze(pos.avg);
-                        setLiveGaze(gaze);
-                        setCurrentConfidence(pos.confidence);
-
-                        // Head Stability Warning
-                        if (lastFaceZRef.current) {
-                            const zDiff = Math.abs(pos.faceZ - lastFaceZRef.current);
-                            setHeadWarning(zDiff > 0.05); // Warn if moving too much toward/away
-                        }
-                        lastFaceZRef.current = pos.faceZ;
-
-                        gazeDataRef.current.push({
-                            time: performance.now(),
-                            eyeX: pos.avg.x,
-                            eyeY: pos.avg.y,
-                            leftEye: pos.left,
-                            rightEye: pos.right,
-                            vergenceX: pos.vergenceX,
-                            vergenceY: pos.vergenceY,
-                            isBlinking: pos.isBlinking,
-                            confidence: pos.confidence,
-                            targetX: targetStateRef.current.x,
-                            targetY: targetStateRef.current.y,
-                            targetVisible: targetStateRef.current.visible,
-                            targetTimestamp: targetStateRef.current.timestamp
-                        });
-                    } else {
-                        // We reset live gaze on failure so user knows it's not locked
-                        setLiveGaze(null);
-                        setCurrentConfidence(0);
-                    }
-                }).catch(err => {
-                    isTrackingRef.current = false;
-                    console.error("[OcularStimulus] Tracking loop error:", err);
-                });
             }
 
             requestRef.current = requestAnimationFrame(animate);
@@ -346,99 +398,103 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
 
         return () => {
             cancelAnimationFrame(requestRef.current);
-            // DON'T stop shared stream tracks here
+            if (trackingIntervalRef.current) {
+                clearInterval(trackingIntervalRef.current);
+                trackingIntervalRef.current = null;
+            }
         };
     }, [config, isDemo, onComplete, testId, tracker, videoElement, lang]);
 
-    // Render logic
+    // --- RENDER ---
     return (
         <div className="fixed inset-0 bg-black cursor-none touch-none overflow-hidden z-[100] select-none" style={{ touchAction: 'none' }}>
-            {/* Clinic Preview (Top Left) - Visual confirmation of Face Lock */}
-            {!isDemo && (
-                <div className={`absolute top-4 left-4 w-32 h-32 rounded-2xl overflow-hidden border-2 transition-all duration-500 z-[110] ${currentConfidence > 0.4 ? (distanceWarning ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]') : 'border-blue-500/50 shadow-lg'}`}>
-                    <video
-                        ref={internalVideoRef}
-                        className="w-full h-full object-cover mirror scale-x-[-1]"
-                        playsInline
-                        muted
-                    />
-                    {/* Face Lock Overlay */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 pointer-events-none">
-                        {currentConfidence > 0 ? (
-                            <div className="relative">
-                                {/* Scanning corners */}
-                                <div className={`absolute -inset-4 border-t-2 border-l-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
-                                <div className={`absolute -inset-4 bottom-auto left-auto border-t-2 border-r-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
-                                <div className={`absolute -inset-4 top-auto right-auto border-b-2 border-l-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
-                                <div className={`absolute -inset-4 top-auto left-auto border-b-2 border-r-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
 
-                                <div className={`text-[8px] font-bold uppercase tracking-widest ${distanceWarning ? 'text-red-500' : 'text-green-500'}`}>
-                                    {distanceWarning ? 'Too Far' : 'Locked'}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-[8px] text-blue-400 font-bold animate-pulse uppercase tracking-widest">Searching...</div>
-                        )}
-                    </div>
-                    {/* Signal Quality Bar (Bottom of PIP) */}
-                    <div className="absolute bottom-0 left-0 h-1 bg-white/10 w-full">
-                        <div
-                            className={`h-full transition-all duration-300 ${currentConfidence > 0.6 ? 'bg-green-500' : (currentConfidence > 0.3 ? 'bg-yellow-500' : 'bg-red-500')}`}
-                            style={{ width: `${currentConfidence * 100}%` }}
-                        ></div>
-                    </div>
-                </div>
-            )}
-
-            {/* Target */}
+            {/* ========== TARGET DOT (FIX BUG #5: was completely missing!) ========== */}
             {targetPos.visible && (
                 <div
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full"
+                    className="absolute pointer-events-none z-[120] transition-all duration-150 ease-out"
                     style={{
                         left: `${targetPos.x}%`,
                         top: `${targetPos.y}%`,
-                        width: config.targetSize + 'px',
-                        height: config.targetSize + 'px',
-                        backgroundColor: targetPos.ghost ? 'transparent' : (targetPos.color || '#f87171'),
-                        border: targetPos.ghost ? '2px dashed #fff' : 'none',
-                        boxShadow: targetPos.ghost ? 'none' : `0 0 15px ${targetPos.color || '#f87171'}`,
-                        opacity: targetPos.ghost ? 0.5 : 1,
-                        // CSS Transition for smooth pursuit only? 
-                        // Actually, if we update state every frame for SPT, turn OFF transition to avoid lag.
-                        // For Saccades, we want instant jump.
-                        transition: config.type === 'smooth_linear' ? 'none' : 'none'
-                        // 'none' is best for JS-driven animation to prevent fighting.
+                        transform: 'translate(-50%, -50%)'
                     }}
                 >
-                    {/* Crosshair for fixation if needed */}
-                    <div className="absolute inset-0 flex items-center justify-center text-white/50 text-[10px] opacity-0">+</div>
+                    {/* Outer glow */}
+                    <div
+                        className="absolute rounded-full animate-ping opacity-30"
+                        style={{
+                            width: (config.targetSize || 20) * 2,
+                            height: (config.targetSize || 20) * 2,
+                            left: -(config.targetSize || 20) / 2,
+                            top: -(config.targetSize || 20) / 2,
+                            backgroundColor: targetPos.color || '#fbbf24',
+                        }}
+                    />
+                    {/* Core dot */}
+                    <div
+                        className="rounded-full shadow-lg"
+                        style={{
+                            width: config.targetSize || 20,
+                            height: config.targetSize || 20,
+                            backgroundColor: targetPos.color || '#fbbf24',
+                            boxShadow: `0 0 20px ${targetPos.color || '#fbbf24'}80, 0 0 60px ${targetPos.color || '#fbbf24'}40`,
+                            opacity: targetPos.ghost ? 0.3 : 1,
+                        }}
+                    />
                 </div>
             )}
 
-            {/* Demo Overlay */}
-            {isDemo && (
-                <div className="absolute bottom-20 left-0 w-full text-center pointer-events-none">
-                    <span className="text-white/80 text-xl font-mono bg-black/50 px-4 py-2 rounded-lg border border-white/20">
+            {/* ========== INSTRUCTION TEXT ========== */}
+            {demoInstruction && (
+                <div className="absolute top-8 left-1/2 -translate-x-1/2 z-[125] pointer-events-none">
+                    <div className="bg-black/60 backdrop-blur-md text-white text-sm font-bold px-6 py-3 rounded-full border border-white/10 shadow-xl uppercase tracking-widest">
                         {demoInstruction}
-                    </span>
+                    </div>
                 </div>
             )}
 
-            {/* Live Gaze Cursor (Clinician Feedback) */}
-            {!isDemo && liveGaze && (
+            {/* ========== CAMERA LAYER ========== */}
+            {!isDemo && (
                 <div
-                    className="absolute w-6 h-6 border-2 border-white/30 rounded-full flex items-center justify-center pointer-events-none transition-all duration-75"
-                    style={{
-                        left: `${liveGaze.x}%`,
-                        top: `${liveGaze.y}%`,
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                    }}
+                    className={`fixed transition-all duration-700 ease-in-out overflow-hidden bg-black z-[130]
+                    ${(currentConfidence > 0.4 && tracker && tracker.isReady)
+                            ? `top-4 left-4 w-28 h-28 rounded-2xl border-2 ${distanceWarning ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]'}`
+                            : 'inset-0 z-[130] rounded-none border-0'
+                        }`}
                 >
-                    <div className="w-1 h-1 bg-white rounded-full opacity-50" />
+                    <MemoizedVideo
+                        ref={internalVideoRef}
+                        className="w-full h-full object-cover scale-x-[-1]"
+                    />
+
+                    {/* PiP Overlay */}
+                    {(currentConfidence > 0.4 && tracker && tracker.isReady) && (
+                        <>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 pointer-events-none">
+                                <div className="relative">
+                                    <div className={`absolute -inset-4 border-t-2 border-l-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
+                                    <div className={`absolute -inset-4 bottom-auto left-auto border-t-2 border-r-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
+                                    <div className={`absolute -inset-4 top-auto right-auto border-b-2 border-l-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
+                                    <div className={`absolute -inset-4 top-auto left-auto border-b-2 border-r-2 w-4 h-4 ${distanceWarning ? 'border-red-500' : 'border-green-500'} transition-colors`}></div>
+                                    <div className={`text-[8px] font-bold uppercase tracking-widest ${distanceWarning ? 'text-red-500' : 'text-green-500'}`}>
+                                        {distanceWarning ? 'Too Far' : 'Locked'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="absolute bottom-0 left-0 h-1 bg-white/10 w-full">
+                                <div className={`h-full transition-all duration-300 ${currentConfidence > 0.6 ? 'bg-green-500' : 'bg-yellow-500'}`} style={{ width: `${currentConfidence * 100}%` }}></div>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Full Screen Dimmer */}
+                    {!(currentConfidence > 0.4 && tracker && tracker.isReady) && (
+                        <div className="absolute inset-0 bg-black/40" />
+                    )}
                 </div>
             )}
 
-            {/* Diagnostics & Initialization Overlay */}
+            {/* ========== SEARCHING STATUS PANEL ========== */}
             {!isDemo && (!liveGaze || (tracker && !tracker.isReady)) && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-[140] pointer-events-none px-6">
                     <div className="bg-slate-950/80 backdrop-blur-2xl border border-white/10 p-10 rounded-[2.5rem] max-w-sm w-full text-center shadow-2xl">
@@ -466,8 +522,8 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                             </div>
                             <div className="flex justify-between items-center text-[10px] uppercase tracking-[0.2em] font-black">
                                 <span className="text-slate-500">AI Compute</span>
-                                <span className={(tracker && tracker.isReady) ? "text-green-500" : "text-yellow-500 animate-pulse"}>
-                                    {(tracker && tracker.isReady) ? "READY" : "BOOTING"}
+                                <span className={(tracker && tracker.isReady) ? "text-green-500" : "text-yellow-500 animate-pulse text-[8px]"}>
+                                    {(tracker && tracker.isReady) ? "READY" : loadingStatus}
                                 </span>
                             </div>
                             <div className="flex justify-between items-center text-[10px] uppercase tracking-[0.2em] font-black">
@@ -479,16 +535,18 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                         </div>
 
                         <p className="text-slate-400 text-sm leading-relaxed font-medium">
-                            {distanceWarning
-                                ? "Please move closer to the camera for an accurate biometric mapping."
-                                : "Position your face in the center of the frame and remain still."}
+                            {!(tracker && tracker.isReady)
+                                ? "AI model loading... Please wait (first launch takes ~10s)."
+                                : distanceWarning
+                                    ? "Please move closer to the camera."
+                                    : "Look directly into the camera and remain still."}
                         </p>
                     </div>
                 </div>
             )}
 
-            {/* Warnings Container */}
-            <div className="absolute top-20 left-0 w-full flex flex-col items-center gap-2 pointer-events-none">
+            {/* ========== WARNINGS ========== */}
+            <div className="absolute top-20 left-0 w-full flex flex-col items-center gap-2 pointer-events-none z-[135]">
                 {headWarning && (
                     <div className="bg-red-600/90 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-tighter animate-bounce">
                         {t.headStill}
@@ -506,30 +564,31 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 )}
             </div>
 
-            {/* Distance Warning Overlay */}
+            {/* Distance Warning */}
             {distanceWarning && (
                 <div className="absolute top-40 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-6 py-2 rounded-full font-bold uppercase tracking-widest shadow-xl animate-pulse z-50 border border-red-400">
                     {t.invalidMap}
                 </div>
             )}
 
-            {/* Signal Quality (P2) */}
+            {/* Signal Quality Bars */}
             {!isDemo && (
-                <div className="absolute top-4 right-20 flex gap-[2px] items-end h-[14px] mr-2" title={`Quality: ${Math.round(currentConfidence * 100)}%`}>
+                <div className="absolute top-4 right-20 flex gap-[2px] items-end h-[14px] mr-2 z-[135]" title={`Quality: ${Math.round(currentConfidence * 100)}%`}>
                     <div className={`w-[3px] rounded-sm ${currentConfidence > 0.2 ? (currentConfidence > 0.4 ? 'bg-green-500' : 'bg-yellow-500') : 'bg-red-500/50'} h-[40%] transition-colors duration-300`}></div>
                     <div className={`w-[3px] rounded-sm ${currentConfidence > 0.5 ? 'bg-green-500' : 'bg-white/10'} h-[70%] transition-colors duration-300`}></div>
                     <div className={`w-[3px] rounded-sm ${currentConfidence > 0.8 ? 'bg-green-500' : 'bg-white/10'} h-[100%] transition-colors duration-300`}></div>
                 </div>
             )}
 
-            {/* Indication of Active Recording */}
+            {/* Recording Indicator */}
             {!isDemo && (
-                <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+                <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20 z-[135]">
                     <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
                     <span className="text-red-500 text-xs font-mono">{t.recording}</span>
                 </div>
             )}
 
+            {/* Abort Button */}
             {!isDemo && onExit && (
                 <button
                     onClick={() => setExitConfirm(true)}
@@ -542,7 +601,7 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                 </button>
             )}
 
-            {/* Fullscreen Abort Confirmation (D6) */}
+            {/* Abort Confirmation */}
             {exitConfirm && (
                 <div className="fixed inset-0 z-[2000] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn" style={{ cursor: 'default' }}>
                     <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-[2rem] text-center shadow-2xl">
@@ -556,24 +615,16 @@ const OcularStimulus = ({ testId, isDemo = false, tracker, onComplete, onExit, v
                             Are you sure you want to end this session? All ocular-motor tracking data for this specific test will be lost.
                         </p>
                         <div className="flex flex-col gap-3">
-                            <button
-                                onClick={onExit}
-                                className="w-full py-4 bg-red-500 hover:bg-red-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/20 active:scale-95 cursor-pointer"
-                            >
+                            <button onClick={onExit} className="w-full py-4 bg-red-500 hover:bg-red-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/20 active:scale-95 cursor-pointer">
                                 Yes, End Test
                             </button>
-                            <button
-                                onClick={() => setExitConfirm(false)}
-                                className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
-                            >
+                            <button onClick={() => setExitConfirm(false)} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all active:scale-95 cursor-pointer">
                                 No, Continue
                             </button>
                         </div>
                     </div>
                 </div>
             )}
-
-
         </div>
     );
 };
